@@ -21,7 +21,7 @@ There are multiple ways to power this:
 - Wide range power input - refer to the Waveshare Wiki as you will have to cut two traces on the board
 - Direct 5v : Locate the "I2C" voltage setting, it is a zero ohms resistor presoldered in the 3v position. Move it to the 5v position and apply 5v to the VCC and GND pins in the I2C section of the connector (NOT the normal voltege inputs!)
 
-For flashing, connect to your computer using the USB connecotr and press the bat-pwr if required.
+For flashing, connect to your computer using the USB connector and press the bat-pwr switch if required.
 
 # OpenHAB
 
@@ -43,7 +43,7 @@ def svgtopng():  # put application's code here
     else:
         size=int(size)
 
-    req = requests.get(f"http://openhab.t-data.com:8080/icon/{name}?format=png&anyFormat=true&state=0&iconset=classic")
+    req = requests.get(f"http://localhost:8080/icon/{name}?format=png&anyFormat=true&state=0&iconset=classic")
     if req.status_code != 200:
         resp = make_response("")
         resp.status_code = req.status_code
@@ -67,6 +67,24 @@ if __name__ == '__main__':
 Install this python app into a virtual env and run it from there. Make sure it starts when OpenHAB restarts, or you will see no icons.
 Please note that port 5050 is hardcoded in this project.
 
+Do this entire procedure as root, or prepend sudo to the appropriate lines.
+
+First, create a user named svgserver on the OpenHAB server:
+
+`useradd svgserver`
+
+Change to the /home/svgserver directory.
+
+`cd /home/svgserver'
+
+Create a virtual environment:
+
+`python -m venv venv`
+`. venv/bin/activate`
+`pip install cairosvg flask normalizer`
+
+Copy the python script and paste it into a file named `app.py` in this directory.
+
 A systemd unit that will run this is here:
 
 ```
@@ -87,6 +105,11 @@ Restart=on-failure
 [Install]
 WantedBy=multi-user.target
 ```
+
+Place this in `/lib/systemd/system/svgserver.service`
+
+Test that it starts and images can be requested on port 5050: http://your.openhab.server:5050/?image=corridor&size=64
+
 
 # Software
 Make sure you have esp-idf installed at version 5.4 or newer, and that you have initialized it.
