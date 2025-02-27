@@ -19,7 +19,7 @@ There are multiple ways to power this:
 
 - USB-C - The v2.0 version will require the bat-pwr to be clicked even when using USB power
 - Wide range power input - refer to the Waveshare Wiki as you will have to cut two traces on the board
-- Direct 5v : Locate the "I2C" voltage setting, it is a zero ohms resistor presoldered in the 3v position. Move it to the 5v position and apply 5v to the VCC and GND pins in the I2C section of the connector (NOT the normal voltege inputs!)
+- Direct 5v : Locate the "I2C" voltage setting, it is a zero ohms resistor presoldered in the 3v position. Move it to the 5v position and apply 5v to the VCC and GND pins in the I2C section of the connector (NOT the normal voltage inputs!)
 
 For flashing, connect to your computer using the USB connector and press the bat-pwr switch if required.
 
