@@ -85,6 +85,8 @@ Create a virtual environment:
 
 Copy the python script and paste it into a file named `app.py` in this directory.
 
+Make sure you change the owner of everything under /home/svgserver to user svgserver, group svgserver
+
 A systemd unit that will run this is here:
 
 ```
