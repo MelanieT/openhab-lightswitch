@@ -75,7 +75,7 @@ First, create a user named svgserver on the OpenHAB server:
 
 Change to the /home/svgserver directory.
 
-`cd /home/svgserver'
+`cd /home/svgserver`
 
 Create a virtual environment:
 
@@ -122,25 +122,25 @@ Get the web interface fromm here: https://github.com/MelanieT/wifi-configurator.
 
 Once you have checked out the web interface, change into its directory and type:
 
-npm install
+`npm install`
 
 followed by:
 
-npm run build
+`npm run build`
 
 After cloning this repository, change into the directory you cloned to and run:
 
-git submodule update --init
+`git submodule update --init`
 
 Edit CMakeLists.txt to replace the path in the spiffs_create_partition_image command with the path to the "dist" directory created by npm run build.
 
 Make the project with:
 
-idf.py build
+`idf.py build`
 
 Flash to the screen with
 
-idf.py flash monitor
+`idf.py flash monitor`
 
 Use your smartphone to follow the directions on the display.
 
