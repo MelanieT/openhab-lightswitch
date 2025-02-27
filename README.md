@@ -3,6 +3,7 @@ A wall switch for OpenHAB
 
 This is a work in progress, although quite usable. I use it in my home.
 
+![Screenshot of a sitemap]/screenshots/Picture_2025_02_27T20_59_52_898Z.jpeg
 # Hardware:
 
 Get this display from Waveshare:
