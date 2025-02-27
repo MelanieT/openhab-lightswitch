@@ -23,6 +23,71 @@ There are multiple ways to power this:
 
 For flashing, connect to your computer using the USB connecotr and press the bat-pwr if required.
 
+# OpenHAB
+
+Recent versions of OpenHAB serve icons as svg. The task of properly decoding SVG images is too large for a microcontroller, so such projects depend on a small python program that needs to run on the Raspberry Pi that OpenHAB is installed on.
+
+```
+import cairosvg
+import requests
+from flask import Flask, make_response
+from flask import request
+app = Flask(__name__)
+
+@app.route('/')
+def svgtopng():  # put application's code here
+    name = request.args.get("image")
+    size = request.args.get("size")
+    if size is None:
+        size = 64
+    else:
+        size=int(size)
+
+    req = requests.get(f"http://openhab.t-data.com:8080/icon/{name}?format=png&anyFormat=true&state=0&iconset=classic")
+    if req.status_code != 200:
+        resp = make_response("")
+        resp.status_code = req.status_code
+        return resp
+
+    if req.headers.get("Content-type") == "image/png":
+        print("image is png")
+        resp = make_response(req.content)
+        resp.headers.set("Content-type", req.headers.get("Content-type"))
+        return resp
+
+    resp = make_response(cairosvg.svg2png(req.content, output_width=size, output_height=size))
+    resp.headers.set("Content-type", "image/png")
+
+    return resp
+
+if __name__ == '__main__':
+    app.run()
+```
+
+Install this python app into a virtual env and run it from there. Make sure it starts when OpenHAB restarts, or you will see no icons.
+Please note that port 5050 is hardcoded in this project.
+
+A systemd unit that will run this is here:
+
+```
+[Unit]
+Description=SVG to PNG converter
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=svgserver
+Group=svgserver
+Type=simple
+WorkingDirectory=/home/svgserver
+ExecStart=/home/svgserver/venv/bin/python -m flask run --host 0.0.0.0 --port 5050
+RestartSec=5
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
 # Software
 Make sure you have esp-idf installed at version 5.4 or newer, and that you have initialized it.
 
