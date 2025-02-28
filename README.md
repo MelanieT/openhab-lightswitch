@@ -4,6 +4,10 @@ A wall switch for OpenHAB
 This is a work in progress, although quite usable. I use it in my home.
 
 ![Screenshot of a sitemap](/screenshots/Picture_2025_02_27T20_59_52_898Z.jpeg)
+
+# Note
+Some of the instructions below require soldering. All options to replace conventional light switches with this involve working on high voltage circuits. Any mains powered options require a neutral wire.
+
 # Hardware:
 
 Get this display from Waveshare:
