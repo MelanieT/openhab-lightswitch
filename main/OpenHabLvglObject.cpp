@@ -17,13 +17,13 @@ OpenHabLvglObject::OpenHabLvglObject(OpenHabObject *parent, const json &data, vo
     lv_coord_t width = lv_obj_get_width(m_lvglParent);
     lv_coord_t height = lv_obj_get_height(m_lvglParent);
 
-    m_flexDescriptor = FlexDescriptor(m_widgetData.label);
+    m_flexDescriptor = FlexDescriptor((m_widgetData.type == Type::Root && m_widgetData.label.find_first_of('{') == string::npos) ? "{'f':'rw'}" : m_widgetData.label);
 
     m_strippedLabel = m_flexDescriptor.label;
 
     if (m_widgetData.type == Type::Root)
     {
-        printf("Type is root\r\n");
+        printf("Type is root, label is %s\r\n", m_widgetData.label.c_str());
         if (lvgl_port_lock(-1))
         {
             m_lvglObject = lv_obj_create(m_lvglParent);
@@ -63,32 +63,48 @@ OpenHabLvglObject::~OpenHabLvglObject()
 void OpenHabLvglObject::receiveIcon(IconInfo *info)
 {
 //    printf("Widget label %s received icon %s, looking for icon %s\r\n", m_strippedLabel.c_str(), info->name.c_str(), m_widgetData.icon.c_str());
+    string specificIcon;
+    if (!m_stateString.empty())
+        specificIcon = m_widgetData.icon + "-" + m_stateString;
 
-    if (info->name == m_widgetData.icon && m_currentIconName != m_widgetData.icon && m_icon && info->width == m_iconSize && info->height == m_iconSize)
+    if (info->name != m_widgetData.icon && (!specificIcon.empty() && info->name != specificIcon))
+        return; // Not ours
+
+    if (!m_currentIconName.empty() && m_currentIconName == specificIcon)
+        return; // Already using the most specific icon
+
+    if (m_currentIconName.empty() || (m_currentIconName != specificIcon && info->name == specificIcon) ||
+        (m_currentIconName != specificIcon && m_currentIconName != m_widgetData.icon))
     {
-        printf("Using icon %s (%dx%d) on widget %s\r\n", m_widgetData.icon.c_str(), info->width, info->height, m_strippedLabel.c_str());
+        m_currentIconName = info->name;
 
-        memset(&m_imageDescriptor, 0, sizeof(m_imageDescriptor));
-        m_imageDescriptor = {
-            .header = {
-                .cf = info->hasAlpha ? LV_IMG_CF_TRUE_COLOR_ALPHA : LV_IMG_CF_TRUE_COLOR,
-                .w = (uint32_t)info->width,
-                .h = (uint32_t)info->height,
-            },
-            .data_size = info->pngdata.size(),
-            .data = info->pngdata.data()
-        };
+        if (m_icon && info->width == m_iconSize && info->height == m_iconSize)
+        {
+            printf("Using icon %s (%dx%d) on widget %s\r\n", m_widgetData.icon.c_str(), info->width, info->height,
+                   m_strippedLabel.c_str());
 
-//        if (lvgl_port_lock(-1))
-//        {
+            memset(&m_imageDescriptor, 0, sizeof(m_imageDescriptor));
+            m_imageDescriptor = {
+                .header = {
+                    .cf = info->hasAlpha ? LV_IMG_CF_TRUE_COLOR_ALPHA : LV_IMG_CF_TRUE_COLOR,
+                    .w = (uint32_t) info->width,
+                    .h = (uint32_t) info->height,
+                },
+                .data_size = info->pngdata.size(),
+                .data = info->pngdata.data()
+            };
+
+            //        if (lvgl_port_lock(-1))
+            //        {
             lv_img_cache_invalidate_src(&m_imageDescriptor);
             lv_img_set_src(m_icon, &m_imageDescriptor);
             m_imageHasAlpha = info->hasAlpha;
 
-//            lvgl_port_unlock();
-//        }
+            //            lvgl_port_unlock();
+            //        }
 
-        updateState();
+            updateState();
+        }
     }
 }
 

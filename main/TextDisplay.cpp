@@ -57,6 +57,7 @@ TextDisplay::TextDisplay(OpenHabObject *parent, const json& data)
         m_unitLabel = lv_label_create(m_lvglObject);
         lv_label_set_text(m_unitLabel, m_widgetData.item.unitSymbol.c_str());
         lv_obj_align_to(m_unitLabel, m_valueLabel, LV_ALIGN_OUT_BOTTOM_RIGHT, 0, 0);
+        lv_obj_set_style_text_font(m_unitLabel, &lv_font_montserrat_14, 0);
 
         m_text = m_widgetData.item.state;
         

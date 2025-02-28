@@ -55,6 +55,7 @@ Switch::Switch(OpenHabObject *parent, const json &data) : OpenHabLvglObject(pare
         else
             lv_obj_align(m_label, LV_ALIGN_BOTTOM_MID, 0, (short)-(m_iconSize / 10));
         lv_label_set_text(m_label, m_strippedLabel.c_str());
+        lv_obj_set_style_text_font(m_label, &lv_font_montserrat_14, 0);
 
         lv_obj_add_event_cb(m_lvglObject, handleClick, LV_EVENT_CLICKED, this);
 
@@ -149,6 +150,7 @@ void Switch::handleEvent(string target, json& evt)
                         vTaskDelay(5 / portTICK_PERIOD_MS);
                     lvgl_port_unlock();
                     updateState();
+                    IconLoader::fetchIcon(m_widgetData.icon + "-" + m_stateString, m_iconSize);
                 }
             }
         }

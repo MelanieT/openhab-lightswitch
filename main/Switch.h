@@ -25,7 +25,6 @@ private:
     void realHandleClick(lv_event_t *e);
 
     string m_fullIconName;
-    string m_stateString;
     bool m_state = false;
 };
 

@@ -51,16 +51,31 @@ struct FlexDescriptor
 
     FlexDescriptor(const string& title)
     {
+        printf("FlexDescriptor parsing %s\r\n", title.c_str());
+
         label = title;
+        bool foundDescriptor = false;
 
+        size_t e;
         auto b = title.find('{');
-        if (b == -1)
-            return;
-        auto e = title.find('}', b);
-        if (e == -1)
-            return;
+        if (b != -1)
+        {
+            e = title.find('}', b);
+            if (e != -1)
+            {
+                foundDescriptor = true;
+                label = title.substr(0, b);
+            }
+        }
 
-        label = title.substr(0, b);
+        if (!foundDescriptor)
+        {
+            haveBgColor = true;
+            bgColorOff = lv_color_make(0x27, 0x89, 0xd1);
+            bgColorOn = lv_color_make(0xe6, 0x7e, 0x22);
+
+            return;
+        }
 
         string desc = regex_replace(title.substr(b, e - b + 1), regex("'"), "\"");
 
@@ -188,6 +203,7 @@ protected:
     string m_currentIconName;
     lv_img_dsc_t m_imageDescriptor;
     bool m_imageHasAlpha;
+    string m_stateString;
 
 private:
     virtual void updateState() {};

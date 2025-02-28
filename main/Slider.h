@@ -17,7 +17,6 @@ public:
     void handleEvent(string target, json& evt) override;
 
 private:
-    string m_stateString;
     int m_value;
     lv_obj_t *m_slider;
     lv_obj_t *m_iconBg;
