@@ -67,44 +67,41 @@ void OpenHabLvglObject::receiveIcon(IconInfo *info)
     if (!m_stateString.empty())
         specificIcon = m_widgetData.icon + "-" + m_stateString;
 
-    if (info->name != m_widgetData.icon && (!specificIcon.empty() && info->name != specificIcon))
+    if (info->name != m_widgetData.icon && (specificIcon.empty() || info->name != specificIcon))
         return; // Not ours
 
     if (!m_currentIconName.empty() && m_currentIconName == specificIcon)
         return; // Already using the most specific icon
 
-    if (m_currentIconName.empty() || (m_currentIconName != specificIcon && info->name == specificIcon) ||
-        (m_currentIconName != specificIcon && m_currentIconName != m_widgetData.icon))
+    if ((m_icon && info->width == m_iconSize && info->height == m_iconSize) && (m_currentIconName.empty() || (m_currentIconName != specificIcon && info->name == specificIcon) ||
+        (m_currentIconName != specificIcon && m_currentIconName != m_widgetData.icon)))
     {
         m_currentIconName = info->name;
 
-        if (m_icon && info->width == m_iconSize && info->height == m_iconSize)
-        {
-            printf("Using icon %s (%dx%d) on widget %s\r\n", m_widgetData.icon.c_str(), info->width, info->height,
-                   m_strippedLabel.c_str());
+        printf("Using icon %s (%dx%d) on widget %s\r\n", info->name.c_str(), info->width, info->height,
+               m_strippedLabel.c_str());
 
-            memset(&m_imageDescriptor, 0, sizeof(m_imageDescriptor));
-            m_imageDescriptor = {
-                .header = {
-                    .cf = info->hasAlpha ? LV_IMG_CF_TRUE_COLOR_ALPHA : LV_IMG_CF_TRUE_COLOR,
-                    .w = (uint32_t) info->width,
-                    .h = (uint32_t) info->height,
-                },
-                .data_size = info->pngdata.size(),
-                .data = info->pngdata.data()
-            };
+        memset(&m_imageDescriptor, 0, sizeof(m_imageDescriptor));
+        m_imageDescriptor = {
+            .header = {
+                .cf = info->hasAlpha ? LV_IMG_CF_TRUE_COLOR_ALPHA : LV_IMG_CF_TRUE_COLOR,
+                .w = (uint32_t) info->width,
+                .h = (uint32_t) info->height,
+            },
+            .data_size = info->pngdata.size(),
+            .data = info->pngdata.data()
+        };
 
-            //        if (lvgl_port_lock(-1))
-            //        {
-            lv_img_cache_invalidate_src(&m_imageDescriptor);
-            lv_img_set_src(m_icon, &m_imageDescriptor);
-            m_imageHasAlpha = info->hasAlpha;
+        //        if (lvgl_port_lock(-1))
+        //        {
+        lv_img_cache_invalidate_src(&m_imageDescriptor);
+        lv_img_set_src(m_icon, &m_imageDescriptor);
+        m_imageHasAlpha = info->hasAlpha;
 
-            //            lvgl_port_unlock();
-            //        }
+        //            lvgl_port_unlock();
+        //        }
 
-            updateState();
-        }
+        updateState();
     }
 }
 
