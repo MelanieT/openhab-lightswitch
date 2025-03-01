@@ -1,24 +1,24 @@
 [submodule "components/cpp_utils"]
 	path = components/cpp_utils
-	url = https://github.com/MelanieT/cpp_utils.git
+	url = git@github.com:MelanieT/cpp_utils.git
 [submodule "components/OTA"]
 	path = components/OTA
-	url = https://github.com/MelanieT/OTA.git
+	url = git@github.com:MelanieT/OTA.git
 [submodule "components/openhab"]
 	path = components/openhab
-	url = https://github.com/MelanieT/openhab.git
+	url = git@github.com:MelanieT/openhab.git
 [submodule "components/base_console"]
 	path = components/base_console
-	url = https://github.com/MelanieT/base_console.git
+	url = git@github.com:MelanieT/base_console.git
 [submodule "components/telnetd-bsd"]
 	path = components/telnetd-bsd
-	url = https://github.com/MelanieT/telnetd-bsd.git
+	url = git@github.com:MelanieT/telnetd-bsd.git
 [submodule "components/uart-console"]
 	path = components/uart-console
-	url = https://github.com/MelanieT/uart-console.git
+	url = git@github.com:MelanieT/uart-console.git
 [submodule "components/console-cpp"]
 	path = components/console-cpp
-	url = https://github.com/MelanieT/console-cpp.git
+	url = git@github.com:MelanieT/console-cpp.git
 [submodule "components/esp-api-server"]
 	path = components/esp-api-server
-	url = https://github.com/MelanieT/esp-api-server.git
+	url = git@github.com:MelanieT/esp-api-server.git

@@ -51,12 +51,12 @@ TextDisplay::TextDisplay(OpenHabObject *parent, const json& data)
         lv_label_set_text(m_label, m_strippedLabel.c_str());
 
         m_valueLabel = lv_label_create(m_lvglObject);
-        lv_obj_align(m_valueLabel, LV_ALIGN_CENTER, 0, -12);
+        lv_obj_align(m_valueLabel, LV_ALIGN_CENTER, 0, -8);
         lv_obj_set_style_text_font(m_valueLabel, &lv_font_montserrat_40, 0);
 
         m_unitLabel = lv_label_create(m_lvglObject);
         lv_label_set_text(m_unitLabel, m_widgetData.item.unitSymbol.c_str());
-        lv_obj_align_to(m_unitLabel, m_valueLabel, LV_ALIGN_OUT_BOTTOM_RIGHT, 0, -8);
+        lv_obj_align_to(m_unitLabel, m_valueLabel, LV_ALIGN_OUT_BOTTOM_RIGHT, 0, -6);
         lv_obj_set_style_text_font(m_unitLabel, &lv_font_montserrat_14, 0);
 
         m_text = m_widgetData.item.state;
@@ -110,5 +110,5 @@ void TextDisplay::updateState()
         lv_label_set_text(m_valueLabel, m_text.c_str());
     }
 
-    lv_obj_align_to(m_unitLabel, m_valueLabel, LV_ALIGN_OUT_BOTTOM_RIGHT, 0, -8);
+    lv_obj_align_to(m_unitLabel, m_valueLabel, LV_ALIGN_OUT_BOTTOM_RIGHT, 0, -6);
 }
