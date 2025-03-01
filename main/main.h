@@ -28,6 +28,7 @@ public:
     void enterApMode();
     void tryConnectWifi(std::string ssid, std::string password);
     void saveOpenhabData(std::string url, std::string sitemap);
+    void saveApiKey(std::string apiKey);
     void loadOpenHab();
     void apStarted();
     void apStopped();
@@ -49,6 +50,7 @@ private:
     std::string m_password;
     std::string m_openHabUrl;
     std::string m_sitemap;
+    std::string m_apiKey;
     httpd_handle_t m_webserver;
     bool m_testConnection = false;
     bool m_stationConnected = false;

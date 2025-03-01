@@ -80,6 +80,10 @@ void Main::run()
     {
         m_sitemap.clear();
     }
+    if (nvs.get("apiKey", &m_apiKey))
+    {
+        m_apiKey.clear();
+    }
 
     printf("ssid %s password %s base %s sitemap %s\r\n", m_ssid.c_str(), m_password.c_str(), m_openHabUrl.c_str(), m_sitemap.c_str());
 
@@ -114,6 +118,7 @@ void Main::run()
             setupConnectingScreen();
 
             openhab.setBaseUrl(m_openHabUrl);
+            openhab.setApiKey(m_apiKey); // This must be called before the first request, else it will be ignored
             string url = m_openHabUrl;
             if (m_openHabUrl.starts_with("http://"))
                 url = m_openHabUrl.substr(7);
@@ -387,5 +392,14 @@ void Main::saveOpenhabData(std::string url, std::string sitemap)
     vTaskDelay(2000 / portTICK_PERIOD_MS);
 
     esp_restart();
+}
+
+void Main::saveApiKey(std::string apiKey)
+{
+    NVS nvs("ls");
+
+    nvs.set("apiKey", std::move(apiKey));
+
+    nvs.commit();
 }
 

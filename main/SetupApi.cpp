@@ -120,6 +120,11 @@ void SetupApi::setOpenhabData(const ApiHttpRequest &req, ApiHttpResponse &resp)
         {
             string url = jsonData["url"].get<string>();
             string sitemap = jsonData["sitemap"].get<string>();
+            if (jsonData.contains("apiKey"))
+            {
+                string apiKey = jsonData["apiKey"].get<string>();
+                appMain.saveApiKey(apiKey);
+            }
 
             appMain.saveOpenhabData(url, sitemap);
         }
