@@ -85,7 +85,7 @@ void Main::run()
         m_apiKey.clear();
     }
 
-    printf("ssid %s password %s base %s sitemap %s\r\n", m_ssid.c_str(), m_password.c_str(), m_openHabUrl.c_str(), m_sitemap.c_str());
+    printf("ssid %s base %s sitemap %s\r\n", m_ssid.c_str(), m_openHabUrl.c_str(), m_sitemap.c_str());
 
     initLcd();
 

@@ -1,4 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="VcsDirectoryMappings" defaultProject="true" />
+  <component name="VcsDirectoryMappings">
+    <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/components/OTA" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/components/base_console" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/components/console-cpp" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/components/cpp_utils" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/components/esp-api-server" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/components/openhab" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/components/telnetd-bsd" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/components/uart-console" vcs="Git" />
+  </component>
 </project>
