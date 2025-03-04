@@ -8,7 +8,32 @@
     <mapping directory="$PROJECT_DIR$/components/cpp_utils" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/components/esp-api-server" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/components/openhab" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/components/spiffs-ota" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/components/telnetd-bsd" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/components/uart-console" vcs="Git" />
+    <mapping directory="/Volumes/Development/xtensa/esp-idf5" vcs="Git" />
+    <mapping directory="/Volumes/Development/xtensa/esp-idf5/components/bootloader/subproject/components/micro-ecc/micro-ecc" vcs="Git" />
+    <mapping directory="/Volumes/Development/xtensa/esp-idf5/components/bt/controller/lib_esp32" vcs="Git" />
+    <mapping directory="/Volumes/Development/xtensa/esp-idf5/components/bt/controller/lib_esp32c2/esp32c2-bt-lib" vcs="Git" />
+    <mapping directory="/Volumes/Development/xtensa/esp-idf5/components/bt/controller/lib_esp32c3_family" vcs="Git" />
+    <mapping directory="/Volumes/Development/xtensa/esp-idf5/components/bt/controller/lib_esp32c5/esp32c5-bt-lib" vcs="Git" />
+    <mapping directory="/Volumes/Development/xtensa/esp-idf5/components/bt/controller/lib_esp32c6/esp32c6-bt-lib" vcs="Git" />
+    <mapping directory="/Volumes/Development/xtensa/esp-idf5/components/bt/controller/lib_esp32h2/esp32h2-bt-lib" vcs="Git" />
+    <mapping directory="/Volumes/Development/xtensa/esp-idf5/components/bt/esp_ble_mesh/lib/lib" vcs="Git" />
+    <mapping directory="/Volumes/Development/xtensa/esp-idf5/components/bt/host/nimble/nimble" vcs="Git" />
+    <mapping directory="/Volumes/Development/xtensa/esp-idf5/components/cmock/CMock" vcs="Git" />
+    <mapping directory="/Volumes/Development/xtensa/esp-idf5/components/esp_coex/lib" vcs="Git" />
+    <mapping directory="/Volumes/Development/xtensa/esp-idf5/components/esp_phy/lib" vcs="Git" />
+    <mapping directory="/Volumes/Development/xtensa/esp-idf5/components/esp_wifi/lib" vcs="Git" />
+    <mapping directory="/Volumes/Development/xtensa/esp-idf5/components/heap/tlsf" vcs="Git" />
+    <mapping directory="/Volumes/Development/xtensa/esp-idf5/components/json/cJSON" vcs="Git" />
+    <mapping directory="/Volumes/Development/xtensa/esp-idf5/components/lwip/lwip" vcs="Git" />
+    <mapping directory="/Volumes/Development/xtensa/esp-idf5/components/mbedtls/mbedtls" vcs="Git" />
+    <mapping directory="/Volumes/Development/xtensa/esp-idf5/components/mqtt/esp-mqtt" vcs="Git" />
+    <mapping directory="/Volumes/Development/xtensa/esp-idf5/components/openthread/lib" vcs="Git" />
+    <mapping directory="/Volumes/Development/xtensa/esp-idf5/components/openthread/openthread" vcs="Git" />
+    <mapping directory="/Volumes/Development/xtensa/esp-idf5/components/protobuf-c/protobuf-c" vcs="Git" />
+    <mapping directory="/Volumes/Development/xtensa/esp-idf5/components/spiffs/spiffs" vcs="Git" />
+    <mapping directory="/Volumes/Development/xtensa/esp-idf5/components/unity/unity" vcs="Git" />
   </component>
 </project>

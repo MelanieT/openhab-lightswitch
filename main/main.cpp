@@ -29,6 +29,7 @@
 
 extern "C" {
 #include "captdns.h"
+#include "spiffs-ota.h"
 }
 
 shared_ptr<OpenHabObject> uiRoot;
@@ -43,10 +44,18 @@ Main appMain;
 Console *console = nullptr;
 esp_netif_t *ap_netif; // For the DNS
 
-static void processCommand(vector<string> args)
+void Main::processCommand(vector<string> args) // Do not move, do not pass by ref, we WANT a copy
 {
+    if (args.empty())
+        return;
+
     if (args[0] == "update")
+    {
         ota.update();
+    }
+
+    if (args[0] == "spiffsupdate")
+        appMain.spiffsUpdate("http://192.168.201.50/lightswitch/lightswitch/spiffs.bin");
 }
 
 extern "C" {
@@ -228,7 +237,7 @@ void Main::loadOpenHab()
     m_webserver = SimpleWebServer::start_webserver("/data");
 
     if (!console)
-        console = new Console(Console::ConsoleType::TelnetConsole, processCommand);
+        console = new Console(Console::ConsoleType::TelnetConsole, [this](auto args) {this->processCommand(args);});
 
     if (m_apRoot != nullptr)
         lv_obj_del_async(m_apRoot);
@@ -301,15 +310,20 @@ void Main::apStopped()
     captdnsStop();
 }
 
+esp_err_t Main::unmountStorage()
+{
+    esp_vfs_spiffs_unregister("spiffs");
+}
+
 esp_err_t Main::mountStorage(const char *basePath)
 {
     ESP_LOGI(TAG, "Initializing SPIFFS");
 
     esp_vfs_spiffs_conf_t conf = {
         .base_path = basePath,
-        .partition_label = NULL,
+        .partition_label = "spiffs",
         .max_files = 5,   // This sets the maximum number of files that can be open at the same time
-        .format_if_mount_failed = true
+        .format_if_mount_failed = false
     };
 
     esp_err_t ret = esp_vfs_spiffs_register(&conf);
@@ -401,5 +415,15 @@ void Main::saveApiKey(std::string apiKey)
     nvs.set("apiKey", std::move(apiKey));
 
     nvs.commit();
+}
+
+void Main::spiffsUpdate(const char *from)
+{
+    SimpleWebServer::stop_webserver(m_webserver);
+//    unmountStorage();
+
+    ota_spiffs(from);
+
+    esp_restart();
 }
 

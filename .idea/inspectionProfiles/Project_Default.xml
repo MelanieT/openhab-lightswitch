@@ -1,0 +1,43 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="ClangTidy" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="clangTidyCheckOptions">
+        <list>
+          <ClangTidyCheckOption>
+            <option name="optionName" value="bugprone-empty-catch.AllowEmptyCatchForExceptions" />
+            <option name="optionValue" value="true" />
+          </ClangTidyCheckOption>
+          <ClangTidyCheckOption>
+            <option name="optionName" value="bugprone-narrowing-conversions.WarnOnEquivalentBitWidth" />
+            <option name="optionValue" value="false" />
+          </ClangTidyCheckOption>
+          <ClangTidyCheckOption>
+            <option name="optionName" value="bugprone-narrowing-conversions.WarnOnFloatingPointNarrowingConversion" />
+            <option name="optionValue" value="false" />
+          </ClangTidyCheckOption>
+          <ClangTidyCheckOption>
+            <option name="optionName" value="bugprone-narrowing-conversions.WarnOnIntegerNarrowingConversion" />
+            <option name="optionValue" value="false" />
+          </ClangTidyCheckOption>
+          <ClangTidyCheckOption>
+            <option name="optionName" value="bugprone-narrowing-conversions.WarnOnIntegerToFloatingPointNarrowingConversion" />
+            <option name="optionValue" value="false" />
+          </ClangTidyCheckOption>
+          <ClangTidyCheckOption>
+            <option name="optionName" value="bugprone-sizeof-expression.WarnOnSizeOfCompareToConstant" />
+            <option name="optionValue" value="false" />
+          </ClangTidyCheckOption>
+          <ClangTidyCheckOption>
+            <option name="optionName" value="bugprone-sizeof-expression.WarnOnSizeOfConstant" />
+            <option name="optionValue" value="false" />
+          </ClangTidyCheckOption>
+          <ClangTidyCheckOption>
+            <option name="optionName" value="bugprone-suspicious-string-compare.WarnOnImplicitComparison" />
+            <option name="optionValue" value="false" />
+          </ClangTidyCheckOption>
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>

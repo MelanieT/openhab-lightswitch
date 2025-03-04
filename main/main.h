@@ -18,6 +18,7 @@ extern Factory factory;
 extern WiFi wifi;
 
 #include <string>
+#include <vector>
 
 class Main
 {
@@ -32,6 +33,7 @@ public:
     void loadOpenHab();
     void apStarted();
     void apStopped();
+    void spiffsUpdate(const char *from);
 
     inline std::string hostname() { return m_hostname; };
     inline bool apMode() { return m_apMode; };
@@ -59,6 +61,8 @@ private:
     void setupConnectingScreen();
     std::string generateHostname(const std::string &hostname_base);
     esp_err_t mountStorage(const char *basePath);
+    esp_err_t unmountStorage();
+    void processCommand(std::vector<std::string> args);
 };
 
 extern Main appMain;

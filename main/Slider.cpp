@@ -18,6 +18,10 @@ Slider::Slider(OpenHabObject *parent, const json &data) : OpenHabLvglObject(pare
     if (lvgl_port_lock(-1))
     {
         m_lvglObject = lv_obj_create(m_lvglParent);
+
+        lv_obj_clear_flag(m_lvglObject, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_add_flag(m_lvglObject, LV_OBJ_FLAG_PRESS_LOCK);
+
         lv_obj_set_style_radius(m_lvglObject, 0, 0);
         lv_obj_set_style_border_width(m_lvglObject, 4, 0);
         lv_obj_set_style_border_color(m_lvglObject, lv_color_make(0, 0, 0), 0);
