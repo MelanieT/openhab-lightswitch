@@ -22,3 +22,6 @@
 [submodule "components/esp-api-server"]
 	path = components/esp-api-server
 	url = git@github.com:MelanieT/esp-api-server.git
+[submodule "components/spiffs-ota"]
+	path = components/spiffs-ota
+	url = https://github.com/MelanieT/spiffs-ota.git
