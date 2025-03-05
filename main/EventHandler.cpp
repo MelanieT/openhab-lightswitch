@@ -4,6 +4,7 @@
 
 #include <esp_wifi.h>
 #include <esp_timer.h>
+#include <esp_phy_init.h>
 #include "EventHandler.h"
 #include "main.h"
 #include "OpenHab.h"
@@ -48,9 +49,14 @@ esp_err_t EventHandler::staDisconnected(wifi_event_sta_disconnected_t *info)
 
     disconnect_count++;
     if (disconnect_count < 5)
+    {
+        esp_phy_erase_cal_data_in_nvs();
         esp_wifi_connect();
+    }
     else
+    {
         appMain.enterApMode();
+    }
 
     return WiFiEventHandler::staDisconnected(info);
 }

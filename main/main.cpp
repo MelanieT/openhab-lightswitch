@@ -38,7 +38,7 @@ static const char *TAG = "lightswitch";
 
 OpenHab openhab;
 Factory factory;
-Ota ota("http://192.168.201.50/lightswitch/lightswitch/rom.img");
+Ota ota;
 WiFi wifi;
 Main appMain;
 Console *console = nullptr;
@@ -50,9 +50,7 @@ void Main::processCommand(vector<string> args) // Do not move, do not pass by re
         return;
 
     if (args[0] == "update")
-    {
-        ota.update();
-    }
+        firmwareUpdate("http://192.168.201.50/lightswitch/lightswitch/rom.img");
 
     if (args[0] == "spiffsupdate")
         appMain.spiffsUpdate("http://192.168.201.50/lightswitch/lightswitch/spiffs.bin");
@@ -201,6 +199,45 @@ void Main::setupApScreen()
 
         m_apLabel2 = lv_label_create(welcome);
         lv_label_set_text(m_apLabel2, m_hostname.c_str());
+        lv_obj_set_style_text_font(m_apLabel2, &lv_font_montserrat_24, 0);
+        lv_obj_align(m_apLabel2, LV_ALIGN_TOP_MID, 0, 140);
+
+        // Release the mutex
+        lvgl_port_unlock();
+    }
+}
+
+void Main::setupInfoScreen(const char *title, const char *action, const char *data)
+{
+    uiRoot.reset();
+
+    if (lvgl_port_lock(-1))
+    {
+        if (m_apRoot != nullptr)
+            lv_obj_del_async(m_apRoot);
+
+        m_apRoot = lv_obj_create(lv_scr_act());
+        lv_obj_set_size(m_apRoot, LVGL_PORT_H_RES, LVGL_PORT_V_RES);
+        lv_obj_center(m_apRoot);
+
+        lv_obj_t *welcome = lv_obj_create(m_apRoot);
+        lv_obj_set_style_bg_color(welcome, lv_color_make(0xe6, 0x7e, 0x22), 0);
+        lv_obj_set_size(welcome, lv_pct(75), lv_pct(50));
+        lv_obj_center(welcome);
+
+        lv_obj_t *welcomeLabel = lv_label_create(welcome);
+        lv_obj_set_style_text_color(welcomeLabel, lv_color_make(255, 255, 255), 0);
+        lv_label_set_text(welcomeLabel, title);
+        lv_obj_set_style_text_font(welcomeLabel, &lv_font_montserrat_34, 0);
+        lv_obj_align(welcomeLabel, LV_ALIGN_TOP_MID, 0, 40);
+
+        m_apLabel1 = lv_label_create(welcome);
+        lv_label_set_text(m_apLabel1, action);
+        lv_obj_set_style_text_font(m_apLabel1, &lv_font_montserrat_18, 0);
+        lv_obj_align(m_apLabel1, LV_ALIGN_TOP_MID, 0, 110);
+
+        m_apLabel2 = lv_label_create(welcome);
+        lv_label_set_text(m_apLabel2, data);
         lv_obj_set_style_text_font(m_apLabel2, &lv_font_montserrat_24, 0);
         lv_obj_align(m_apLabel2, LV_ALIGN_TOP_MID, 0, 140);
 
@@ -419,11 +456,32 @@ void Main::saveApiKey(std::string apiKey)
 
 void Main::spiffsUpdate(const char *from)
 {
+    uiRoot.reset();
+
+    setupInfoScreen("Updating", "Downloading update for", "Web Interface"); // Todo
+
     SimpleWebServer::stop_webserver(m_webserver);
 //    unmountStorage();
 
     ota_spiffs(from);
 
+    lv_obj_del(m_apRoot);
+
     esp_restart();
 }
 
+void Main::firmwareUpdate(const char *from)
+{
+    uiRoot.reset();
+
+    setupInfoScreen("Updating", "Downloading update for", "Firmware"); // Todo
+
+    SimpleWebServer::stop_webserver(m_webserver);
+//    unmountStorage();
+
+    ota.update("http://192.168.201.50/lightswitch/lightswitch/rom.img");
+
+    lv_obj_del(m_apRoot);
+
+    esp_restart();
+}

@@ -34,6 +34,7 @@ public:
     void apStarted();
     void apStopped();
     void spiffsUpdate(const char *from);
+    void firmwareUpdate(const char *from);
 
     inline std::string hostname() { return m_hostname; };
     inline bool apMode() { return m_apMode; };
@@ -58,6 +59,7 @@ private:
     bool m_stationConnected = false;
 
     void setupApScreen();
+    void setupInfoScreen(const char *title, const char *action, const char *data);
     void setupConnectingScreen();
     std::string generateHostname(const std::string &hostname_base);
     esp_err_t mountStorage(const char *basePath);
