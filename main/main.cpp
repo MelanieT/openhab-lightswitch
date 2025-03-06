@@ -50,10 +50,24 @@ void Main::processCommand(vector<string> args) // Do not move, do not pass by re
         return;
 
     if (args[0] == "update")
-        firmwareUpdate("http://192.168.201.50/lightswitch/lightswitch/rom.img");
+    {
+        SimpleWebServer::stop_webserver(m_webserver);
+        openhab.disconnectEventChannel();
+
+        spiffsUpdate((m_otaServer + "/spiffs.bin").c_str());
+        firmwareUpdate((m_otaServer + "/rom.img").c_str());
+    }
 
     if (args[0] == "spiffsupdate")
-        appMain.spiffsUpdate("http://192.168.201.50/lightswitch/lightswitch/spiffs.bin");
+    {
+        spiffsUpdate((m_otaServer + "/spiffs.bin").c_str());
+        esp_restart();
+    }
+
+    if (args[0] == "reboot")
+    {
+        esp_restart();
+    }
 }
 
 extern "C" {
@@ -65,6 +79,8 @@ void app_main()
 
 void Main::run()
 {
+    m_otaServer = "http://192.168.201.50/lightswitch/lightswitch";
+
     NVS nvs("ls");
 
     mountStorage("/data");
@@ -215,7 +231,15 @@ void Main::setupInfoScreen(const char *title, const char *action, const char *da
     {
         if (m_apRoot != nullptr)
             lv_obj_del_async(m_apRoot);
+        m_apRoot = nullptr;
 
+        lvgl_port_unlock();
+    }
+
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+    if (lvgl_port_lock(-1))
+    {
         m_apRoot = lv_obj_create(lv_scr_act());
         lv_obj_set_size(m_apRoot, LVGL_PORT_H_RES, LVGL_PORT_V_RES);
         lv_obj_center(m_apRoot);
@@ -376,7 +400,7 @@ esp_err_t Main::mountStorage(const char *basePath)
     }
 
     size_t total = 0, used = 0;
-    ret = esp_spiffs_info(NULL, &total, &used);
+    ret = esp_spiffs_info("spiffs", &total, &used);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get SPIFFS partition information (%s)", esp_err_to_name(ret));
         return ret;
@@ -456,32 +480,44 @@ void Main::saveApiKey(std::string apiKey)
 
 void Main::spiffsUpdate(const char *from)
 {
-    uiRoot.reset();
-
     setupInfoScreen("Updating", "Downloading update for", "Web Interface"); // Todo
 
-    SimpleWebServer::stop_webserver(m_webserver);
-//    unmountStorage();
-
     ota_spiffs(from);
-
-    lv_obj_del(m_apRoot);
-
-    esp_restart();
 }
 
 void Main::firmwareUpdate(const char *from)
 {
-    uiRoot.reset();
+    if (m_apRoot == nullptr)
+    {
+        setupInfoScreen("Updating", "Downloading update for", "Firmware");
+    }
+    else
+    {
+        if (lvgl_port_lock(-1))
+        {
+            lv_label_set_text(m_apLabel2, "Firmware");
 
-    setupInfoScreen("Updating", "Downloading update for", "Firmware"); // Todo
+            lvgl_port_unlock();
+        }
+    }
 
-    SimpleWebServer::stop_webserver(m_webserver);
-//    unmountStorage();
+    vTaskDelay(100 / portTICK_PERIOD_MS);
 
     ota.update("http://192.168.201.50/lightswitch/lightswitch/rom.img");
 
-    lv_obj_del(m_apRoot);
+    setupInfoScreen("Error", "Update has failed", "");
+
+    vTaskDelay(2000 / portTICK_PERIOD_MS);
+
+    if (lvgl_port_lock(-1))
+    {
+        lv_obj_del_async(m_apRoot);
+        m_apRoot = nullptr;
+
+        lvgl_port_unlock();
+    }
+
+    vTaskDelay(500 / portTICK_PERIOD_MS);
 
     esp_restart();
 }

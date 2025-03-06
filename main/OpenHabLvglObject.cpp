@@ -58,6 +58,10 @@ OpenHabLvglObject::OpenHabLvglObject(OpenHabObject *parent, const json &data, vo
 
 OpenHabLvglObject::~OpenHabLvglObject()
 {
+    if (m_widgetData.type == Type::Root)
+    {
+        lv_obj_del_async(m_lvglObject);
+    }
 }
 
 void OpenHabLvglObject::receiveIcon(IconInfo *info)

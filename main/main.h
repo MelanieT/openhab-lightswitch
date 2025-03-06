@@ -57,6 +57,8 @@ private:
     httpd_handle_t m_webserver;
     bool m_testConnection = false;
     bool m_stationConnected = false;
+    std::string m_otaServer;
+
 
     void setupApScreen();
     void setupInfoScreen(const char *title, const char *action, const char *data);

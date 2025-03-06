@@ -18,10 +18,14 @@ public:
 
 private:
     void updateState() override;
+    static void handleClick(lv_event_t *e);
+    void realHandleClick(lv_event_t *e);
 
     lv_obj_t *m_unitLabel;
     lv_obj_t *m_valueLabel;
     string m_text;
+    bool m_isIconLabel;
+    bool m_state = true;
 };
 
 
