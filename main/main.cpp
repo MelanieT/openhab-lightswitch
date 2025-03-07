@@ -134,7 +134,7 @@ void Main::run()
 
     if (!m_ssid.empty() && !m_password.empty())
     {
-        wifi.connectAP("7_IG6_3DF", "a34c9aa3d18282478a34511ab3", false, WIFI_MODE_APSTA);
+        wifi.connectAP(m_ssid, m_password, false, WIFI_MODE_APSTA);
 
         if (!m_openHabUrl.empty() && !m_sitemap.empty())
         {
