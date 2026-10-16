@@ -4,9 +4,13 @@
 # CMakeLists in this exact order for cmake to work correctly
 cmake_minimum_required(VERSION 3.5)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+# Only proven with ESP-IDF 5.3.1. Other versions (5.5.1) build fine but the display misbehaves.
+if(NOT "${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}.${IDF_VERSION_PATCH}" STREQUAL "5.3.1")
+    message(FATAL_ERROR "Build with ESP-IDF 5.3.1, not ${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}.${IDF_VERSION_PATCH} (IDF_PATH=$ENV{IDF_PATH})")
+endif()
 add_compile_options("-Wno-attributes")
 idf_build_set_property(COMPILE_OPTIONS "-w" APPEND)
 idf_build_set_property(COMPILE_OPTIONS "-fpermissive" APPEND)
 project(lightswitch)
 
-spiffs_create_partition_image(spiffs /Users/melanie/Projects/wifi-configurator/dist FLASH_IN_PROJECT)
+spiffs_create_partition_image(spiffs /Users/melanie/Projects/wifi-configurator/dist-lightswitch FLASH_IN_PROJECT)

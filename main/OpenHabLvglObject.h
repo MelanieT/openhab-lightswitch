@@ -188,6 +188,9 @@ public:
 
     inline OpenHabLvglObject *parent() { return (OpenHabLvglObject *)OpenHabObject::parent();};
     inline lv_obj_t *lvglObject() { return m_lvglObject; };
+    // Forget the LVGL object when its parent is deleted synchronously by someone
+    // else, so the destructor won't queue a delete of an already freed object
+    inline void detachLvglObject() { m_lvglObject = nullptr; };
 
     void receiveIcon(IconInfo *info) override;
 

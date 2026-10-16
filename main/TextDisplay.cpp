@@ -3,6 +3,8 @@
 //
 
 #include "TextDisplay.h"
+#include <cmath>
+#include <cstring>
 #include "OpenHab.h"
 #include "lvgl_port.h"
 #include "main.h"
@@ -17,6 +19,55 @@ static vector<string> split (const string &s, char delim) {
     }
 
     return result;
+}
+
+// openHAB patterns are Java format strings, e.g. "%.1f °C", "%d %%" or "%.0f %unit%".
+// Only pass printf a pattern with a single numeric conversion; a %s or several
+// conversions would make it read arguments that aren't there.
+static bool formatNumber(char *buffer, size_t size, std::string pattern, double num)
+{
+    size_t pos;
+    while ((pos = pattern.find("%unit%")) != std::string::npos)
+        pattern.erase(pos, 6); // The unit has its own label
+
+    int conversions = 0;
+    char type = 0;
+    for (size_t i = 0; i < pattern.length(); i++)
+    {
+        if (pattern[i] != '%')
+            continue;
+        if (i + 1 < pattern.length() && pattern[i + 1] == '%')
+        {
+            i++;
+            continue;
+        }
+        size_t j = i + 1;
+        while (j < pattern.length() && strchr("-+ #0", pattern[j]))
+            j++;
+        while (j < pattern.length() && isdigit((unsigned char) pattern[j]))
+            j++;
+        if (j < pattern.length() && pattern[j] == '.')
+        {
+            j++;
+            while (j < pattern.length() && isdigit((unsigned char) pattern[j]))
+                j++;
+        }
+        if (j >= pattern.length() || !strchr("feEgGdi", pattern[j]))
+            return false;
+        type = pattern[j];
+        conversions++;
+        i = j;
+    }
+
+    if (conversions > 1)
+        return false;
+    if (conversions == 0)
+        snprintf(buffer, size, pattern.c_str()); // Only %% left, safe
+    else if (type == 'd' || type == 'i')
+        snprintf(buffer, size, pattern.c_str(), (int) lround(num));
+    else
+        snprintf(buffer, size, pattern.c_str(), num);
+    return true;
 }
 
 bool replace(std::string& str, const std::string& from, const std::string& to) {
@@ -128,20 +179,30 @@ void TextDisplay::updateState()
     if (m_isIconLabel)
     {
         m_stateString = m_text;
-        IconLoader::fetchIcon(m_widgetData.icon + "-" + m_stateString, m_iconSize);
-
-        if (m_imageHasAlpha && m_flexDescriptor.haveImageLineColor)
+        if (m_stateString.contains(" "))
         {
-            if (m_state)
-                lv_obj_set_style_img_recolor(m_icon, m_flexDescriptor.imageLineColorOn, 0);
-            else
-                lv_obj_set_style_img_recolor(m_icon, m_flexDescriptor.imageLineColorOff, 0);
-
-            lv_obj_set_style_img_recolor_opa(m_icon, LV_OPA_100, 0);
+            IconLoader::fetchIcon(m_widgetData.icon, m_iconSize);
         }
         else
         {
-            lv_obj_set_style_img_recolor_opa(m_icon, LV_OPA_0, 0);
+            IconLoader::fetchIcon(m_widgetData.icon + "-" + m_stateString, m_iconSize);
+        }
+
+        if (m_icon)
+        {
+            if (m_imageHasAlpha && m_flexDescriptor.haveImageLineColor)
+            {
+                if (m_state)
+                    lv_obj_set_style_img_recolor(m_icon, m_flexDescriptor.imageLineColorOn, 0);
+                else
+                    lv_obj_set_style_img_recolor(m_icon, m_flexDescriptor.imageLineColorOff, 0);
+
+                lv_obj_set_style_img_recolor_opa(m_icon, LV_OPA_100, 0);
+            }
+            else
+            {
+                lv_obj_set_style_img_recolor_opa(m_icon, LV_OPA_0, 0);
+            }
         }
 
         if (m_widgetData.item.type == ItemType::StringItem && (m_text == "ON" || m_text == "OFF"))
@@ -155,8 +216,10 @@ void TextDisplay::updateState()
         {
             auto num = strtod(value.c_str(), nullptr);
             char buffer[38];
-            snprintf(buffer, 38, m_widgetData.item.stateDescription.pattern.c_str(), num);
-            lv_label_set_text(m_valueLabel, buffer);
+            if (formatNumber(buffer, sizeof(buffer), m_widgetData.item.stateDescription.pattern, num))
+                lv_label_set_text(m_valueLabel, buffer);
+            else
+                lv_label_set_text(m_valueLabel, m_text.c_str()); // Pattern not usable with a number
         }
         else
         {
@@ -182,13 +245,13 @@ void TextDisplay::realHandleClick(lv_event_t *e)
 //            printf("  %s: %s\r\n", m.command.c_str(), m.label.c_str());
 //        }
         vector<uint8_t> body;
-        HttpRequests::postUrl(openhab.baseUrl() + m_widgetData.mappings[0].command, body, nullptr);
+        HttpRequests::queuePostUrl(openhab.baseUrl() + m_widgetData.mappings[0].command, body, nullptr);
     }
     else if (!m_widgetData.item.link.empty())
     {
         std::string onOff = m_text;
         std::vector<uint8_t> body(onOff.length());
         std::transform(onOff.begin(), onOff.end(), body.begin(), [](const char c) { return (uint8_t) c; });
-        HttpRequests::postUrl(m_widgetData.item.link, body, nullptr);
+        HttpRequests::queuePostUrl(m_widgetData.item.link, body, nullptr);
     }
 }

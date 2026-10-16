@@ -23,7 +23,7 @@ esp_err_t EventHandler::staGotIp(ip_event_got_ip_t *info)
         inet_ntop(AF_INET, &info->ip_info, ipAddrStr, sizeof(ipAddrStr));
         printf("IP for station netif %s, changed %d\r\n", ipAddrStr, info->ip_changed);
 
-        appMain.loadOpenHab();
+        appMain.loadOpenHab(ipAddrStr);
     }
     return err;
 }
@@ -39,7 +39,8 @@ esp_err_t EventHandler::staDisconnected(wifi_event_sta_disconnected_t *info)
     }
     else
     {
-        if (esp_timer_get_time() - last_disconnect > 3600 * 60 * 1000000)
+        // One hour, in 64 bit (as int it overflowed and came out as ~21 minutes)
+        if (esp_timer_get_time() - last_disconnect > 3600LL * 1000000)
         {
             printf("Restarting count\r\n");
             last_disconnect = 0;
@@ -55,7 +56,7 @@ esp_err_t EventHandler::staDisconnected(wifi_event_sta_disconnected_t *info)
     }
     else
     {
-        appMain.enterApMode();
+        appMain.enterApMode(true); // Network not found, keep looking for it
     }
 
     return WiFiEventHandler::staDisconnected(info);

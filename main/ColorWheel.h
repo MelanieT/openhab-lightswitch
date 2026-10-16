@@ -30,9 +30,9 @@ private:
     static void handleMode(lv_event_t *e);
     static void handleColor(lv_event_t *e);
 
-    lv_obj_t *m_colorWheel;
-    lv_obj_t *m_modeButton;
-    lv_obj_t *m_modeLabel;
+    lv_obj_t *m_colorWheel = nullptr;
+    lv_obj_t *m_modeButton = nullptr;
+    lv_obj_t *m_modeLabel = nullptr;
 };
 
 

@@ -321,5 +321,7 @@ void captdnsStop(void)
 {
     if (handle)
         vTaskDelete(handle);
+    shutdown(sockFd, SHUT_RDWR);
+    close(sockFd);
     handle = 0;
 }

@@ -113,7 +113,7 @@ void Switch::realHandleClick(lv_event_t *e)
 //            printf("  %s: %s\r\n", m.command.c_str(), m.label.c_str());
 //        }
         vector<uint8_t> body;
-        HttpRequests::postUrl(openhab.baseUrl() + m_widgetData.mappings[0].command, body, nullptr);
+        HttpRequests::queuePostUrl(openhab.baseUrl() + m_widgetData.mappings[0].command, body, nullptr);
     }
     else
     {
@@ -124,7 +124,7 @@ void Switch::realHandleClick(lv_event_t *e)
         std::string onOff = m_state ? "ON" : "OFF";
         std::vector<uint8_t> body(onOff.length());
         std::transform(onOff.begin(), onOff.end(), body.begin(), [](const char c) { return (uint8_t) c; });
-        HttpRequests::postUrl(m_widgetData.item.link, body, nullptr);
+        HttpRequests::queuePostUrl(m_widgetData.item.link, body, nullptr);
     }
 }
 
@@ -146,11 +146,12 @@ void Switch::handleEvent(string target, json& evt)
                     else
                         m_state = false;
 
-                    while (!lvgl_port_lock(5))
-                        vTaskDelay(5 / portTICK_PERIOD_MS);
-                    lvgl_port_unlock();
-                    updateState();
-                    IconLoader::fetchIcon(m_widgetData.icon + "-" + m_stateString, m_iconSize);
+                    if (lvgl_port_lock(-1))
+                    {
+                        updateState();
+                        IconLoader::fetchIcon(m_widgetData.icon + "-" + m_stateString, m_iconSize);
+                        lvgl_port_unlock();
+                    }
                 }
             }
         }

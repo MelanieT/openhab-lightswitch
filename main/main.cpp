@@ -40,6 +40,7 @@ OpenHab openhab;
 Factory factory;
 Ota ota;
 WiFi wifi;
+MDNS *mdns;
 Main appMain;
 Console *console = nullptr;
 esp_netif_t *ap_netif; // For the DNS
@@ -108,13 +109,13 @@ void Main::run()
         m_apiKey.clear();
     }
 
-    printf("ssid %s base %s sitemap %s\r\n", m_ssid.c_str(), m_openHabUrl.c_str(), m_sitemap.c_str());
+    printf("ssid %s base %s sitemap %s api key %s\r\n", m_ssid.c_str(), m_openHabUrl.c_str(), m_sitemap.c_str(), m_apiKey.c_str());
 
     initLcd();
 
     m_hostname = generateHostname(TAG);
-    wifi.setStationHostname(generateHostname(TAG));
-//    wifi.startAP(generateHostname(TAG), "", WIFI_AUTH_OPEN);
+    wifi.setStationHostname(m_hostname.c_str());
+    // wifi.startAP(generateHostname(TAG), "", WIFI_AUTH_OPEN);
     wifi.setWifiEventHandler(new EventHandler());
 
     if (lvgl_port_lock(-1))
@@ -132,16 +133,42 @@ void Main::run()
         lvgl_port_unlock();
     }
 
-    if (!m_ssid.empty() && !m_password.empty())
+    setupHwScreen();
+    vTaskDelay(5000 / portTICK_PERIOD_MS);
+    closeHwScreen();
+
+    if (m_updateMode && (m_ssid.empty() || m_password.empty()))
     {
-        wifi.connectAP(m_ssid, m_password, false, WIFI_MODE_APSTA);
+        m_updateMode = false;
+        setupInfoScreen("Update", "Not possible,", "no network configured");
+        vTaskDelay(3000 / portTICK_PERIOD_MS);
+        closeInfoScreen();
+    }
+
+    if (!m_ssid.empty() && !m_password.empty() && !m_enterAPMode)
+    {
+        wifi.connectSTA(m_ssid, m_password, false, WIFI_MODE_APSTA);
+        m_stationStarted = true;
+        esp_wifi_set_ps(WIFI_PS_NONE); // Mains powered, modem sleep only adds latency
+
+        if (m_updateMode)
+            setupInfoScreen("Update", "Connecting to", m_ssid.c_str());
+
+        mdns = new MDNS();
+        mdns->setHostname(m_hostname.c_str());
+        mdns->setInstance("Lightswitch");
+        mdns->serviceAdd(nullptr, "_http", "_tcp", 80);
 
         if (!m_openHabUrl.empty() && !m_sitemap.empty())
         {
-            setupConnectingScreen();
+            if (!m_updateMode)
+                setupConnectingScreen();
 
             openhab.setBaseUrl(m_openHabUrl);
             openhab.setApiKey(m_apiKey); // This must be called before the first request, else it will be ignored
+            ESP_LOGI(TAG, "Open hab url: %s", m_openHabUrl.c_str());
+            ESP_LOGI(TAG, "Open hab token: %s", m_apiKey.c_str());
+
             string url = m_openHabUrl;
             if (m_openHabUrl.starts_with("http://"))
                 url = m_openHabUrl.substr(7);
@@ -167,7 +194,7 @@ void Main::run()
     }
 }
 
-void Main::enterApMode()
+void Main::enterApMode(bool retryStation)
 {
     if (m_apMode)
         return;
@@ -176,12 +203,26 @@ void Main::enterApMode()
 
     m_apMode = true;
 
-    esp_wifi_stop();
+    // if (m_webserver)
+    //     SimpleWebServer::stop_webserver(m_webserver);
+    // m_webserver = SimpleWebServer::start_webserver("/data");
+
+    // With the station running, wifi.stop() + startAP() re-ran the wifi init, which
+    // creates the default netifs a second time and asserts. Just drop the station.
+    if (m_stationStarted)
+        wifi.disconnectSTA();
+    else
+        wifi.stop();
     wifi.startAP(generateHostname(TAG), "", WIFI_AUTH_OPEN);
 
     setupApScreen();
 
     ap_netif = wifi.getAccessPointIf();
+
+    // Entered because the network wasn't found, e.g. the router was still booting
+    // after a power cut. Keep looking for it, or the switch stays offline for good.
+    if (retryStation)
+        xTaskCreate(Main::apRetryTask, "ap_retry", 4096, this, 1, nullptr);
 }
 
 void Main::setupApScreen()
@@ -227,14 +268,7 @@ void Main::setupInfoScreen(const char *title, const char *action, const char *da
 {
     uiRoot.reset();
 
-    if (lvgl_port_lock(-1))
-    {
-        if (m_apRoot != nullptr)
-            lv_obj_del_async(m_apRoot);
-        m_apRoot = nullptr;
-
-        lvgl_port_unlock();
-    }
+    closeInfoScreen();
 
     vTaskDelay(1000 / portTICK_PERIOD_MS);
 
@@ -270,15 +304,40 @@ void Main::setupInfoScreen(const char *title, const char *action, const char *da
     }
 }
 
-void Main::loadOpenHab()
+void Main::closeInfoScreen()
+{
+    if (lvgl_port_lock(-1))
+    {
+        if (m_apRoot != nullptr)
+            lv_obj_del_async(m_apRoot);
+        m_apRoot = nullptr;
+
+        lvgl_port_unlock();
+    }
+}
+
+void Main::loadOpenHab(const std::string &ip)
 {
     if (m_testConnection)
         return;
 
     m_stationConnected = true;
 
+    vTaskDelay(1000 / portTICK_PERIOD_MS); // Let wifi stabilize
+
+    if (m_updateMode)
+    {
+        m_updateMode = false;
+        // Own task, not this event handler: the download posts http client events
+        // to the default event loop, which is the task running this
+        xTaskCreate(Main::updateTask, "update", 8192, this, 5, nullptr);
+        return;
+    }
+
     if (m_openHabUrl.empty() || m_sitemap.empty())
     {
+        // No AP here: setup continues over the network at the IP shown below.
+        // The AP is only for AP mode (chosen at boot, or no network found).
         m_webserver = SimpleWebServer::start_webserver("/data");
 
         setupApScreen();
@@ -300,26 +359,76 @@ void Main::loadOpenHab()
     if (!console)
         console = new Console(Console::ConsoleType::TelnetConsole, [this](auto args) {this->processCommand(args);});
 
-    if (m_apRoot != nullptr)
-        lv_obj_del_async(m_apRoot);
-    m_apRoot = nullptr;
+    if (m_setupMode)
+    {
+        setupInfoScreen("Setup mode", "Connect to", ip.c_str());
+        return;
+    }
 
-    auto sitemap = m_sitemap;
+    closeInfoScreen();
+
+    if (m_loadRetryRunning)
+        return; // The background retry does the loading
+
     openhab.setBaseUrl(m_openHabUrl);
     openhab.disconnectEventChannel();
-    openhab.loadSitemapsList([sitemap](vector<Sitemap> s){
+
+    if (!loadSitemapUi())
+    {
+        // openHAB not reachable yet, e.g. still booting after a power cut. Without a
+        // retry the switch stayed on "Connecting" with no updates until rebooted.
+        printf("Loading sitemap %s failed, retrying in the background\r\n", m_sitemap.c_str());
+        m_loadRetryRunning = true;
+        // 16k like the system event task this normally runs on, the sitemap parse is deep
+        if (xTaskCreate(Main::loadRetryTask, "load_retry", 16384, this, 1, nullptr) != pdPASS)
+            m_loadRetryRunning = false;
+    }
+}
+
+bool Main::loadSitemapUi()
+{
+    bool loaded = false;
+    auto sitemap = m_sitemap;
+    openhab.loadSitemapsList([sitemap, &loaded](vector<Sitemap> s){
         auto it = std::find_if(s.begin(), s.end(),[sitemap](auto e){ return e.name == sitemap;});
         if (it != s.end())
         {
-            openhab.loadSitemap((*it).homepage, &factory, [](auto root){
+            openhab.loadSitemap((*it).homepage, &factory, [&loaded](auto root){
 //                        printf("Sitemap load done\r\n");
+
+                if (!root)
+                    return;
+                loaded = true;
 
                 uiRoot = root;
                 openhab.connectEventChannel();
             }, nullptr);
         }
     });
+    return loaded;
+}
 
+#define LOAD_RETRY_INTERVAL_MS (10 * 1000)
+
+void Main::loadRetryTask(void *arg)
+{
+    auto main = static_cast<Main *>(arg);
+
+    while (!main->m_apMode)
+    {
+        vTaskDelay(LOAD_RETRY_INTERVAL_MS / portTICK_PERIOD_MS);
+
+        if (main->m_apMode)
+            break;
+        if (main->loadSitemapUi())
+        {
+            printf("Sitemap %s loaded\r\n", main->m_sitemap.c_str());
+            break;
+        }
+    }
+
+    main->m_loadRetryRunning = false;
+    vTaskDelete(nullptr);
 }
 
 string Main::generateHostname(const string& hostname_base)
@@ -359,21 +468,109 @@ void Main::setupConnectingScreen()
     }
 }
 
+void Main::setupHwScreen()
+{
+    if (lvgl_port_lock(-1))
+    {
+        m_hwScreen = lv_obj_create(lv_scr_act());
+        lv_obj_set_size(m_hwScreen, LVGL_PORT_H_RES, LVGL_PORT_V_RES);
+        lv_obj_center(m_hwScreen);
+
+        lv_obj_t *versionLabel = lv_label_create(m_hwScreen);
+        lv_obj_set_style_text_color(versionLabel, lv_color_make(255, 255, 255), 0);
+        lv_label_set_text(versionLabel, (string("Version: ") + VERSION).c_str());
+        lv_obj_set_style_text_font(versionLabel, &lv_font_montserrat_20, 0);
+        lv_obj_set_pos(versionLabel, 0, 0);
+        
+        lv_obj_t *nameLabel = lv_label_create(m_hwScreen);
+        lv_obj_set_style_text_color(nameLabel, lv_color_make(255, 255, 255), 0);
+        lv_label_set_text(nameLabel, ("Hostname: " + m_hostname).c_str());
+        lv_obj_set_style_text_font(nameLabel, &lv_font_montserrat_20, 0);
+        lv_obj_set_pos(nameLabel, 0, 24);
+
+        lv_obj_t *apButton = lv_btn_create(m_hwScreen);
+        lv_obj_set_pos(apButton, 0, 150);
+        lv_obj_set_size(apButton, 140, 55);
+
+        lv_obj_t *apButtonLabel = lv_label_create(apButton);
+        lv_label_set_text(apButtonLabel, "Start AP");
+        lv_obj_set_style_text_color(apButtonLabel, lv_color_make(255, 255, 255), 0);
+        lv_obj_set_style_text_font(apButtonLabel, &lv_font_montserrat_24, 0);
+        lv_obj_center(apButtonLabel);
+        lv_obj_add_event_cb(apButton, [](lv_event_t *e) {
+            auto main = static_cast<Main *>(e->user_data);
+            main->m_enterAPMode = true;
+        }, LV_EVENT_CLICKED, this);
+
+        lv_obj_t *keepApButton = lv_btn_create(m_hwScreen);
+        lv_obj_set_pos(keepApButton, 160, 150);
+        lv_obj_set_size(keepApButton, 140, 55);
+
+        lv_obj_t *keepApButtonLabel = lv_label_create(keepApButton);
+        lv_label_set_text(keepApButtonLabel, "Setup");
+        lv_obj_set_style_text_color(keepApButtonLabel, lv_color_make(255, 255, 255), 0);
+        lv_obj_set_style_text_font(keepApButtonLabel, &lv_font_montserrat_24, 0);
+        lv_obj_center(keepApButtonLabel);
+        lv_obj_add_event_cb(keepApButton, [](lv_event_t *e) {
+            auto main = static_cast<Main *>(e->user_data);
+            main->m_setupMode = true;
+        }, LV_EVENT_CLICKED, this);
+
+        lv_obj_t *updateButton = lv_btn_create(m_hwScreen);
+        lv_obj_set_pos(updateButton, 0, 220);
+        lv_obj_set_size(updateButton, 140, 55);
+
+        lv_obj_t *updateButtonLabel = lv_label_create(updateButton);
+        lv_label_set_text(updateButtonLabel, "Update");
+        lv_obj_set_style_text_color(updateButtonLabel, lv_color_make(255, 255, 255), 0);
+        lv_obj_set_style_text_font(updateButtonLabel, &lv_font_montserrat_24, 0);
+        lv_obj_center(updateButtonLabel);
+        lv_obj_add_event_cb(updateButton, [](lv_event_t *e) {
+            auto main = static_cast<Main *>(e->user_data);
+            main->m_updateMode = true;
+        }, LV_EVENT_CLICKED, this);
+        
+        lvgl_port_unlock();
+    }
+}
+
+void Main::closeHwScreen()
+{
+    if (lvgl_port_lock(-1))
+    {
+        lv_obj_del(m_hwScreen);
+
+        lvgl_port_unlock();
+    }
+}
+
 void Main::apStarted()
 {
+    captdnsStop();
     captdnsInit();
+    if (m_webserver)
+    {
+        SimpleWebServer::stop_webserver(m_webserver);
+    }
     m_webserver = SimpleWebServer::start_webserver("/data");
+
 }
 
 void Main::apStopped()
 {
-    SimpleWebServer::stop_webserver(m_webserver);
+    // Connected to the network, the web server is still needed. When stopping it,
+    // forget the handle, or a later stop would use the freed one.
+    if (!m_stationConnected && m_webserver)
+    {
+        SimpleWebServer::stop_webserver(m_webserver);
+        m_webserver = nullptr;
+    }
     captdnsStop();
 }
 
 esp_err_t Main::unmountStorage()
 {
-    esp_vfs_spiffs_unregister("spiffs");
+    return esp_vfs_spiffs_unregister("spiffs");
 }
 
 esp_err_t Main::mountStorage(const char *basePath)
@@ -422,7 +619,7 @@ void Main::tryConnectWifi(std::string ssid, std::string password)
 
     setupConnectingScreen();
     printf("Attempting to connect\r\n");
-    auto ret = wifi.connectAP(ssid, password, true, WIFI_MODE_APSTA);
+    auto ret = wifi.connectSTA(ssid, password, true, WIFI_MODE_APSTA);
     printf("Connect done, result %d\r\n", ret);
     vTaskDelay(1000 / portTICK_PERIOD_MS);
     m_testConnection = false;
@@ -478,6 +675,49 @@ void Main::saveApiKey(std::string apiKey)
     nvs.commit();
 }
 
+void Main::update()
+{
+    SimpleWebServer::stop_webserver(m_webserver);
+    openhab.disconnectEventChannel();
+
+    spiffsUpdate((m_otaServer + "/spiffs.bin").c_str());
+    firmwareUpdate((m_otaServer + "/rom.img").c_str());
+}
+
+#define AP_RETRY_INTERVAL_MS (60 * 1000)
+
+void Main::apRetryTask(void *arg)
+{
+    auto main = static_cast<Main *>(arg);
+
+    while (main->m_apMode)
+    {
+        vTaskDelay(AP_RETRY_INTERVAL_MS / portTICK_PERIOD_MS);
+
+        // Leave anyone using the setup page alone, a scan takes the AP off channel
+        wifi_sta_list_t clients;
+        if (main->m_testConnection || (esp_wifi_ap_get_sta_list(&clients) == ESP_OK && clients.num > 0))
+            continue;
+
+        for (auto &ap : wifi.scan())
+        {
+            if (ap.getSSID() == main->m_ssid)
+            {
+                printf("Network %s is back, restarting\r\n", main->m_ssid.c_str());
+                esp_restart(); // A clean normal boot
+            }
+        }
+    }
+
+    vTaskDelete(nullptr);
+}
+
+void Main::updateTask(void *arg)
+{
+    static_cast<Main *>(arg)->update();
+    vTaskDelete(nullptr);
+}
+
 void Main::spiffsUpdate(const char *from)
 {
     setupInfoScreen("Updating", "Downloading update for", "Web Interface"); // Todo
@@ -509,13 +749,7 @@ void Main::firmwareUpdate(const char *from)
 
     vTaskDelay(2000 / portTICK_PERIOD_MS);
 
-    if (lvgl_port_lock(-1))
-    {
-        lv_obj_del_async(m_apRoot);
-        m_apRoot = nullptr;
-
-        lvgl_port_unlock();
-    }
+    closeInfoScreen();
 
     vTaskDelay(500 / portTICK_PERIOD_MS);
 

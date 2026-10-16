@@ -12,7 +12,7 @@
 #include "esp_lcd_panel_io_additions.h"
 #include "esp_lcd_st7701.h"
 
-extern const char *TAG;
+static const char *TAG="lcd";
 
 #define EXAMPLE_LCD_H_RES (480)
 #define EXAMPLE_LCD_V_RES (480)

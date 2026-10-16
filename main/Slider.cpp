@@ -95,7 +95,7 @@ void Slider::realHandleSlider(lv_event_t *evt)
     auto value = valueString();
     std::vector<uint8_t> body(value.length());
     std::transform(value.begin(), value.end(), body.begin(), [](const char c){ return (uint8_t)c; });
-    HttpRequests::postUrl(m_widgetData.item.link, body, nullptr);
+    HttpRequests::queuePostUrl(m_widgetData.item.link, body, nullptr);
 }
 
 string Slider::valueString()

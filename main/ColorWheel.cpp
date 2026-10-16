@@ -136,5 +136,5 @@ void ColorWheel::handleColor(lv_event_t *e)
     string data(buf);
     std::vector<uint8_t> body(data.length());
     std::transform(data.begin(), data.end(), body.begin(), [](const char c){ return (uint8_t)c; });
-    HttpRequests::postUrl(me->m_widgetData.item.link, body, nullptr);
+    HttpRequests::queuePostUrl(me->m_widgetData.item.link, body, nullptr);
 }

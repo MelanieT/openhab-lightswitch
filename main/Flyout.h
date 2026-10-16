@@ -26,6 +26,7 @@ private:
     static void handleBack(lv_event_t  *e);
     void realHandleBack(lv_event_t  *e);
     void updateState() override;
+    void createFlyoutPanel();
 
     lv_obj_t *m_flyout = nullptr;
     lv_obj_t *m_flyoutParent = nullptr;

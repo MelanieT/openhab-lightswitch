@@ -58,9 +58,14 @@ OpenHabLvglObject::OpenHabLvglObject(OpenHabObject *parent, const json &data, vo
 
 OpenHabLvglObject::~OpenHabLvglObject()
 {
-    if (m_widgetData.type == Type::Root)
+    if (m_widgetData.type == Type::Root && m_lvglObject)
     {
-        lv_obj_del_async(m_lvglObject);
+        if (lvgl_port_lock(-1))
+        {
+            lv_obj_del_async(m_lvglObject);
+
+            lvgl_port_unlock();
+        }
     }
 }
 
@@ -96,16 +101,16 @@ void OpenHabLvglObject::receiveIcon(IconInfo *info)
             .data = info->pngdata.data()
         };
 
-        //        if (lvgl_port_lock(-1))
-        //        {
-        lv_img_cache_invalidate_src(&m_imageDescriptor);
-        lv_img_set_src(m_icon, &m_imageDescriptor);
-        m_imageHasAlpha = info->hasAlpha;
+        if (lvgl_port_lock(-1))
+        {
+            lv_img_cache_invalidate_src(&m_imageDescriptor);
+            lv_img_set_src(m_icon, &m_imageDescriptor);
+            m_imageHasAlpha = info->hasAlpha;
 
-        //            lvgl_port_unlock();
-        //        }
+            updateState();
 
-        updateState();
+            lvgl_port_unlock();
+        }
     }
 }
 

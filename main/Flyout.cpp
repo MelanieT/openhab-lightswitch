@@ -59,6 +59,10 @@ Flyout::Flyout(OpenHabObject *parent, const json &data) : OpenHabLvglObject(pare
 
         m_iconSize = 32;
         IconLoader::fetchIcon("sv-cog", 32);
+
+        // The embedded gear needs the same panel as BTN. Without it, opening put
+        // the page straight on the screen with no back button.
+        createFlyoutPanel();
     }
     else if (m_strippedLabel == "BTN")
     {
@@ -99,26 +103,17 @@ Flyout::Flyout(OpenHabObject *parent, const json &data) : OpenHabLvglObject(pare
             lvgl_port_unlock();
         }
 
+        createFlyoutPanel();
+
         IconLoader::fetchIcon(m_widgetData.icon, m_iconSize);
     }
 }
 
-Flyout::~Flyout()
-{
-    IconLoader::unregisterReceiver(this);
-}
-
-void Flyout::handleClick(lv_event_t *e)
-{
-    ((Flyout *)e->user_data)->realHandleClick(e);
-}
-
-void Flyout::realHandleClick(lv_event_t *e)
+// The full screen panel the linked page is shown in, with its back button
+void Flyout::createFlyoutPanel()
 {
     if (lvgl_port_lock(-1))
     {
-        auto factory = make_shared<Factory>();
-
         m_flyout = lv_obj_create(lv_scr_act());
         lv_obj_set_style_bg_color(m_flyout, lv_color_make(0, 0, 0), 0);
         lv_obj_set_style_bg_opa(m_flyout, LV_OPA_100, 0);
@@ -129,7 +124,7 @@ void Flyout::realHandleClick(lv_event_t *e)
         lv_obj_center(m_flyout);
         lv_obj_set_style_pad_all(m_flyout, 0, 0);
         lv_obj_set_style_pad_gap(m_flyout, 0, 0);
-
+        lv_obj_add_flag(m_flyout, LV_OBJ_FLAG_HIDDEN);
 
         m_flyoutParent = lv_obj_create(m_flyout);
         lv_obj_set_style_bg_color(m_flyoutParent, lv_color_make(0, 0, 0), 0);
@@ -174,6 +169,64 @@ void Flyout::realHandleClick(lv_event_t *e)
         lv_obj_set_style_img_recolor(m_backIcon, lv_color_make(0, 0, 2505), 0);
         lv_obj_set_style_img_recolor_opa(m_backIcon, LV_OPA_100, 0);
 
+        lvgl_port_unlock();
+    }
+}
+
+Flyout::~Flyout()
+{
+    // First, so no icon is delivered to objects that are being deleted
+    IconLoader::unregisterReceiver(this);
+
+    // If the flyout is open, its page lives inside m_flyoutParent, which is deleted
+    // synchronously below. Tear the page down first and stop its root from queueing
+    // an async delete of an object that will already be freed.
+    if (m_rootObject)
+    {
+        m_rootObject->deleteChildren();
+        auto root = dynamic_pointer_cast<OpenHabLvglObject>(m_rootObject);
+        if (root)
+            root->detachLvglObject();
+        m_rootObject.reset();
+    }
+
+    // Only the LVGL deletes themselves are under the lock
+    if (lvgl_port_lock(-1))
+    {
+        if (m_backIcon)
+            lv_obj_del(m_backIcon);
+        if (m_backBackground)
+            lv_obj_del(m_backBackground);
+        if (m_backButton)
+            lv_obj_del(m_backButton);
+        if (m_flyoutParent)
+            lv_obj_del(m_flyoutParent);
+        if (m_flyout)
+            lv_obj_del(m_flyout);
+
+        lvgl_port_unlock();
+    }
+
+    m_backIcon = nullptr;
+    m_backBackground = nullptr;
+    m_backButton = nullptr;
+    m_flyoutParent = nullptr;
+    m_flyout = nullptr;
+}
+
+void Flyout::handleClick(lv_event_t *e)
+{
+    ((Flyout *)e->user_data)->realHandleClick(e);
+}
+
+void Flyout::realHandleClick(lv_event_t *e)
+{
+    if (lvgl_port_lock(-1))
+    {
+        auto factory = make_shared<Factory>();
+
+        lv_obj_clear_flag(m_flyout, LV_OBJ_FLAG_HIDDEN);
+
         m_flexDescriptor.applyFlexStyles(m_lvglObject);
 
         openhab.loadSitemap(m_widgetData.linkedPage.link, factory.get(), [this](auto root) {
@@ -196,11 +249,15 @@ void Flyout::receiveIcon(IconInfo *info)
             .w = (uint32_t)info->width,
             .h = (uint32_t)info->height
         };
-        m_backDescriptor.data_size = info->data.size();
+        m_backDescriptor.data_size = info->pngdata.size(); // data is freed after decoding
         m_backDescriptor.data = info->pngdata.data();
 
-        lv_img_cache_invalidate_src(&m_backDescriptor);
-        lv_img_set_src(m_backIcon, &m_backDescriptor);
+        if (lvgl_port_lock(-1))
+        {
+            lv_img_cache_invalidate_src(&m_backDescriptor);
+            lv_img_set_src(m_backIcon, &m_backDescriptor);
+            lvgl_port_unlock();
+        }
     }
 }
 
@@ -211,24 +268,17 @@ void Flyout::handleBack(lv_event_t *e)
 
 void Flyout::realHandleBack(lv_event_t *e)
 {
-    m_rootObject->deleteChildren();
-    m_rootObject.reset();
+    if (m_rootObject) // Null if loading the page failed
+    {
+        m_rootObject->deleteChildren();
+        m_rootObject.reset();
+    }
 
-    if (m_backIcon)
-        lv_obj_del(m_backIcon);
-    if (m_backBackground)
-        lv_obj_del(m_backBackground);
-    if (m_backButton)
-        lv_obj_del(m_backButton);
-    if (m_flyoutParent)
-        lv_obj_del(m_flyoutParent);
-    if (m_flyout)
-        lv_obj_del(m_flyout);
-    m_backIcon = nullptr;
-    m_backBackground = nullptr;
-    m_backButton = nullptr;
-    m_flyoutParent = nullptr;
-    m_flyout = nullptr;
+    if (lvgl_port_lock(-1))
+    {
+        lv_obj_add_flag(m_flyout, LV_OBJ_FLAG_HIDDEN);
+        lvgl_port_unlock();
+    }
 
     if (m_strippedLabel == "FL")
     {

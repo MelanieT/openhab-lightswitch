@@ -18,9 +18,9 @@ public:
 
 private:
     int m_value;
-    lv_obj_t *m_slider;
-    lv_obj_t *m_iconBg;
-    lv_obj_t *m_percentage;
+    lv_obj_t *m_slider = nullptr;
+    lv_obj_t *m_iconBg = nullptr;
+    lv_obj_t *m_percentage = nullptr;
 
     static void handleSlider(lv_event_t *evt);
     void realHandleSlider(lv_event_t *evt);

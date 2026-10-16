@@ -21,10 +21,10 @@ private:
     static void handleClick(lv_event_t *e);
     void realHandleClick(lv_event_t *e);
 
-    lv_obj_t *m_unitLabel;
-    lv_obj_t *m_valueLabel;
+    lv_obj_t *m_unitLabel = nullptr;
+    lv_obj_t *m_valueLabel = nullptr;
     string m_text;
-    bool m_isIconLabel;
+    bool m_isIconLabel = false;
     bool m_state = true;
 };
 
