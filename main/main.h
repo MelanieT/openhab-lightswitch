@@ -35,8 +35,8 @@ public:
     void loadOpenHab(const std::string &ip);
     void apStarted();
     void apStopped();
-    void spiffsUpdate(const char *from);
-    void firmwareUpdate(const char *from);
+    void spiffsUpdate();
+    void firmwareUpdate();
     void update();
 
     inline std::string hostname() { return m_hostname; };
@@ -61,7 +61,6 @@ private:
     httpd_handle_t m_webserver;
     bool m_testConnection = false;
     bool m_stationConnected = false;
-    std::string m_otaServer;
     bool m_captdnsStarted = false;
     bool m_enterAPMode = false;
     bool m_setupMode = false;

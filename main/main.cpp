@@ -55,13 +55,13 @@ void Main::processCommand(vector<string> args) // Do not move, do not pass by re
         SimpleWebServer::stop_webserver(m_webserver);
         openhab.disconnectEventChannel();
 
-        spiffsUpdate((m_otaServer + "/spiffs.bin").c_str());
-        firmwareUpdate((m_otaServer + "/rom.img").c_str());
+        spiffsUpdate();
+        firmwareUpdate();
     }
 
     if (args[0] == "spiffsupdate")
     {
-        spiffsUpdate((m_otaServer + "/spiffs.bin").c_str());
+        spiffsUpdate();
         esp_restart();
     }
 
@@ -80,8 +80,6 @@ void app_main()
 
 void Main::run()
 {
-    m_otaServer = "http://192.168.201.50/lightswitch/lightswitch";
-
     NVS nvs("ls");
 
     mountStorage("/data");
@@ -147,7 +145,7 @@ void Main::run()
 
     if (!m_ssid.empty() && !m_password.empty() && !m_enterAPMode)
     {
-        wifi.connectSTA(m_ssid, m_password, false, WIFI_MODE_APSTA);
+        wifi.connectSTA(m_ssid, m_password, false);
         m_stationStarted = true;
         esp_wifi_set_ps(WIFI_PS_NONE); // Mains powered, modem sleep only adds latency
 
@@ -619,19 +617,22 @@ void Main::tryConnectWifi(std::string ssid, std::string password)
 
     setupConnectingScreen();
     printf("Attempting to connect\r\n");
-    auto ret = wifi.connectSTA(ssid, password, true, WIFI_MODE_APSTA);
+    // Keeps the AP running while connecting, the setup page is using it
+    auto ret = wifi.connectSTA(ssid, password, true);
     printf("Connect done, result %d\r\n", ret);
     vTaskDelay(1000 / portTICK_PERIOD_MS);
     m_testConnection = false;
 
     if (ret)
     {
-        esp_wifi_disconnect();
-        esp_wifi_set_mode(WIFI_MODE_AP);
+        wifi.disconnectSTA(); // Back to AP only
         setupApScreen();
         return;
     }
     m_stationConnected = true;
+
+    // Setup continues over the network. Only now, so apStopped() keeps the web server.
+    wifi.stopAP();
 
     NVS nvs("ls");
 
@@ -680,8 +681,8 @@ void Main::update()
     SimpleWebServer::stop_webserver(m_webserver);
     openhab.disconnectEventChannel();
 
-    spiffsUpdate((m_otaServer + "/spiffs.bin").c_str());
-    firmwareUpdate((m_otaServer + "/rom.img").c_str());
+    spiffsUpdate();
+    firmwareUpdate();
 }
 
 #define AP_RETRY_INTERVAL_MS (60 * 1000)
@@ -718,14 +719,14 @@ void Main::updateTask(void *arg)
     vTaskDelete(nullptr);
 }
 
-void Main::spiffsUpdate(const char *from)
+void Main::spiffsUpdate()
 {
     setupInfoScreen("Updating", "Downloading update for", "Web Interface"); // Todo
 
-    ota_spiffs(from);
+    ota_spiffs("spiffs"); // From CONFIG_SPIFFS_OTA_URI
 }
 
-void Main::firmwareUpdate(const char *from)
+void Main::firmwareUpdate()
 {
     if (m_apRoot == nullptr)
     {
@@ -743,7 +744,7 @@ void Main::firmwareUpdate(const char *from)
 
     vTaskDelay(100 / portTICK_PERIOD_MS);
 
-    ota.update("http://192.168.201.50/lightswitch/lightswitch/rom.img");
+    ota.update(); // From CONFIG_OTA_SERVER_URI
 
     setupInfoScreen("Error", "Update has failed", "");
 
