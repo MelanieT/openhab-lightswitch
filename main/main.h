@@ -5,7 +5,7 @@
 #ifndef LIGHTSWITCH_MAIN_H
 #define LIGHTSWITCH_MAIN_H
 
-#define VERSION "2.3"
+#define VERSION "2.4"
 
 #include "lvgl.h"
 #include "esp_http_server.h"
@@ -37,6 +37,7 @@ public:
     void apStopped();
     void spiffsUpdate();
     void firmwareUpdate();
+    void showProgress(int done, int total);
     void update();
 
     inline std::string hostname() { return m_hostname; };
@@ -47,8 +48,11 @@ public:
     inline std::string sitemap() { return m_sitemap; };
 
 private:
+    void addProgressBar();
     bool m_apMode = false;
     lv_obj_t *m_apRoot = nullptr;
+    lv_obj_t *m_progressBar = nullptr; // In the box of m_apRoot, goes with it
+    int m_progressPercent = -1;
     lv_obj_t *m_apLabel1;
     lv_obj_t *m_apLabel2;
     lv_obj_t *m_hwScreen;

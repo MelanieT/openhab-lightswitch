@@ -42,7 +42,20 @@ Ota ota;
 WiFi wifi;
 MDNS *mdns;
 Main appMain;
-Console *console = nullptr;
+Console console;
+static bool consoleStarted = false;
+
+// console_printf needs os_sprintf, which base_console keeps to itself
+static void consolePrintf(const char *format, ...)
+{
+    char data[256];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(data, sizeof(data), format, args);
+    va_end(args);
+    console_send(data);
+}
+
 esp_netif_t *ap_netif; // For the DNS
 
 void Main::processCommand(vector<string> args) // Do not move, do not pass by ref, we WANT a copy
@@ -231,6 +244,7 @@ void Main::setupApScreen()
     {
         if (m_apRoot != nullptr)
             lv_obj_del_async(m_apRoot);
+        m_progressBar = nullptr;
 
         m_apRoot = lv_obj_create(lv_scr_act());
         lv_obj_set_size(m_apRoot, LVGL_PORT_H_RES, LVGL_PORT_V_RES);
@@ -309,6 +323,7 @@ void Main::closeInfoScreen()
         if (m_apRoot != nullptr)
             lv_obj_del_async(m_apRoot);
         m_apRoot = nullptr;
+        m_progressBar = nullptr;
 
         lvgl_port_unlock();
     }
@@ -354,8 +369,12 @@ void Main::loadOpenHab(const std::string &ip)
         SimpleWebServer::stop_webserver(m_webserver);
     m_webserver = SimpleWebServer::start_webserver("/data");
 
-    if (!console)
-        console = new Console(Console::ConsoleType::TelnetConsole, [this](auto args) {this->processCommand(args);});
+    if (!consoleStarted)
+    {
+        console.init(Console::ConsoleType::TelnetConsole, [this](auto args) {this->processCommand(args);},
+                     [] { consolePrintf("%s %s\r\n", TAG, VERSION); });
+        consoleStarted = true;
+    }
 
     if (m_setupMode)
     {
@@ -445,6 +464,7 @@ void Main::setupConnectingScreen()
     {
         if (m_apRoot)
             lv_obj_del_async(m_apRoot);
+        m_progressBar = nullptr;
 
         m_apRoot = lv_obj_create(lv_scr_act());
         lv_obj_set_size(m_apRoot, LVGL_PORT_H_RES, LVGL_PORT_V_RES);
@@ -719,10 +739,98 @@ void Main::updateTask(void *arg)
     vTaskDelete(nullptr);
 }
 
+// Update progress on the telnet console, in steps of 10%
+static void printProgress(const char *what, int done, int total)
+{
+    static const char *lastWhat = nullptr;
+    static int lastStep = -1;
+
+    if (!consoleStarted)
+        return; // Nothing to print to before the console exists
+
+    if (what != lastWhat)
+    {
+        lastWhat = what;
+        lastStep = -1;
+    }
+
+    int step = total > 0 ? done * 10 / total : done / (256 * 1024);
+    if (step == lastStep)
+        return;
+    lastStep = step;
+
+    if (total > 0)
+        consolePrintf("%s: %d%% (%d of %d bytes)\r\n", what, step * 10, done, total);
+    else
+        consolePrintf("%s: %d bytes\r\n", what, done);
+}
+
+static void printSpiffsProgress(int done, int total)
+{
+    printProgress("Web interface", done, total);
+    appMain.showProgress(done, total);
+}
+
+// A slim bar along the bottom edge of the box on screen, edge to edge, no label
+void Main::addProgressBar()
+{
+    if (lvgl_port_lock(-1))
+    {
+        lv_obj_t *box = m_apRoot ? lv_obj_get_child(m_apRoot, 0) : nullptr;
+        if (box && !m_progressBar)
+        {
+            lv_obj_update_layout(box);
+            // The bar sits in the padding at the bottom: don't let that scroll, keep it in the rounded corners
+            lv_obj_clear_flag(box, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_set_style_clip_corner(box, true, 0);
+
+            lv_coord_t border = lv_obj_get_style_border_width(box, LV_PART_MAIN);
+            m_progressBar = lv_bar_create(box);
+            lv_obj_set_size(m_progressBar, lv_obj_get_width(box) - 2 * border, 4);
+            lv_obj_align(m_progressBar, LV_ALIGN_BOTTOM_LEFT, -lv_obj_get_style_pad_left(box, LV_PART_MAIN),
+                         lv_obj_get_style_pad_bottom(box, LV_PART_MAIN));
+            lv_obj_set_style_radius(m_progressBar, 0, LV_PART_MAIN);
+            lv_obj_set_style_radius(m_progressBar, 0, LV_PART_INDICATOR);
+            lv_obj_set_style_bg_color(m_progressBar, lv_color_white(), LV_PART_MAIN);
+            lv_obj_set_style_bg_opa(m_progressBar, LV_OPA_30, LV_PART_MAIN);
+            lv_obj_set_style_bg_color(m_progressBar, lv_color_white(), LV_PART_INDICATOR);
+            lv_obj_set_style_bg_opa(m_progressBar, LV_OPA_COVER, LV_PART_INDICATOR);
+            lv_bar_set_range(m_progressBar, 0, 100);
+        }
+        if (m_progressBar)
+            lv_bar_set_value(m_progressBar, 0, LV_ANIM_OFF);
+        m_progressPercent = 0;
+
+        lvgl_port_unlock();
+    }
+}
+
+// From the update task: only take the UI lock when the bar actually moves
+void Main::showProgress(int done, int total)
+{
+    if (total <= 0)
+        return;
+
+    int percent = (int) ((int64_t) done * 100 / total);
+    if (percent == m_progressPercent)
+        return;
+    m_progressPercent = percent;
+
+    if (lvgl_port_lock(-1))
+    {
+        if (m_progressBar)
+            lv_bar_set_value(m_progressBar, percent, LV_ANIM_OFF);
+
+        lvgl_port_unlock();
+    }
+}
+
 void Main::spiffsUpdate()
 {
     setupInfoScreen("Updating", "Downloading update for", "Web Interface"); // Todo
+    addProgressBar();
 
+    ota_spiffs_set_progress_callback(printSpiffsProgress);
     ota_spiffs("spiffs"); // From CONFIG_SPIFFS_OTA_URI
 }
 
@@ -742,8 +850,14 @@ void Main::firmwareUpdate()
         }
     }
 
+    addProgressBar(); // Back to empty for the firmware
+
     vTaskDelay(100 / portTICK_PERIOD_MS);
 
+    ota.setProgressCallback([](int done, int total) {
+        printProgress("Firmware", done, total);
+        appMain.showProgress(done, total);
+    });
     ota.update(); // From CONFIG_OTA_SERVER_URI
 
     setupInfoScreen("Error", "Update has failed", "");
