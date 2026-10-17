@@ -23,12 +23,10 @@
 #include "ota.h"
 #include "main.h"
 #include "CPPNVS.h"
-#include "EventHandler.h"
-#include "SimpleWebServer.h"
 #include "SetupApi.h"
+#include "AppFramework.h"
 
 extern "C" {
-#include "captdns.h"
 #include "spiffs-ota.h"
 }
 
@@ -40,23 +38,10 @@ OpenHab openhab;
 Factory factory;
 Ota ota;
 WiFi wifi;
-MDNS *mdns;
+AppFramework framework(&wifi);
 Main appMain;
 Console console;
 static bool consoleStarted = false;
-
-// console_printf needs os_sprintf, which base_console keeps to itself
-static void consolePrintf(const char *format, ...)
-{
-    char data[256];
-    va_list args;
-    va_start(args, format);
-    vsnprintf(data, sizeof(data), format, args);
-    va_end(args);
-    console_send(data);
-}
-
-esp_netif_t *ap_netif; // For the DNS
 
 void Main::processCommand(vector<string> args) // Do not move, do not pass by ref, we WANT a copy
 {
@@ -65,7 +50,7 @@ void Main::processCommand(vector<string> args) // Do not move, do not pass by re
 
     if (args[0] == "update")
     {
-        SimpleWebServer::stop_webserver(m_webserver);
+        framework.stopWebServer();
         openhab.disconnectEventChannel();
 
         spiffsUpdate();
@@ -95,15 +80,27 @@ void Main::run()
 {
     NVS nvs("ls");
 
-    mountStorage("/data");
-
     SetupApi::init();
 
-    if (nvs.get("ssid", &m_ssid))
+    // The framework keeps the wifi credentials in "wifi". Up to 2.4 they were in "ls": move them
+    // over once, and keep them there too, an older version still needs them.
+    NVS wifiNvs("wifi");
+    if (wifiNvs.get("ssid", &m_ssid))
     {
-        m_ssid.clear();
+        if (!nvs.get("ssid", &m_ssid) && !nvs.get("password", &m_password))
+        {
+            wifiNvs.set("ssid", m_ssid);
+            wifiNvs.set("password", m_password);
+            wifiNvs.commit();
+            printf("Wifi credentials moved to the framework\r\n");
+        }
+        else
+        {
+            m_ssid.clear();
+            m_password.clear();
+        }
     }
-    if (nvs.get("password", &m_password))
+    else if (wifiNvs.get("password", &m_password))
     {
         m_password.clear();
     }
@@ -124,10 +121,15 @@ void Main::run()
 
     initLcd();
 
-    m_hostname = generateHostname(TAG);
-    wifi.setStationHostname(m_hostname.c_str());
-    // wifi.startAP(generateHostname(TAG), "", WIFI_AUTH_OPEN);
-    wifi.setWifiEventHandler(new EventHandler());
+    m_hostname = framework.hostname();
+    framework.setHandler(this);
+    framework.setWebAppIsSpa(true);
+    framework.setMdnsInstance("Lightswitch");
+    // For the openHAB setup page
+    framework.setDeviceDataHandler([this](auto &reply) {
+        reply["base"] = m_openHabUrl;
+        reply["sitemap"] = m_sitemap;
+    });
 
     if (lvgl_port_lock(-1))
     {
@@ -156,19 +158,17 @@ void Main::run()
         closeInfoScreen();
     }
 
+    // Joins the network, or opens the setup access point: without credentials, after
+    // failing to join, or asked for on the boot screen
+    if (m_enterAPMode)
+        framework.startSetup();
+    framework.init();
+    esp_wifi_set_ps(WIFI_PS_NONE); // Mains powered, modem sleep only adds latency
+
     if (!m_ssid.empty() && !m_password.empty() && !m_enterAPMode)
     {
-        wifi.connectSTA(m_ssid, m_password, false);
-        m_stationStarted = true;
-        esp_wifi_set_ps(WIFI_PS_NONE); // Mains powered, modem sleep only adds latency
-
         if (m_updateMode)
             setupInfoScreen("Update", "Connecting to", m_ssid.c_str());
-
-        mdns = new MDNS();
-        mdns->setHostname(m_hostname.c_str());
-        mdns->setInstance("Lightswitch");
-        mdns->serviceAdd(nullptr, "_http", "_tcp", 80);
 
         if (!m_openHabUrl.empty() && !m_sitemap.empty())
         {
@@ -194,46 +194,11 @@ void Main::run()
             IconLoader::addIconFromData("back", (uint8_t *) back, 64, 64);
         }
     }
-    else
-    {
-        enterApMode();
-    }
 
     while (true)
     {
         vTaskDelay(2 / portTICK_PERIOD_MS);
     }
-}
-
-void Main::enterApMode(bool retryStation)
-{
-    if (m_apMode)
-        return;
-
-    printf("Entering AP mode\r\n");
-
-    m_apMode = true;
-
-    // if (m_webserver)
-    //     SimpleWebServer::stop_webserver(m_webserver);
-    // m_webserver = SimpleWebServer::start_webserver("/data");
-
-    // With the station running, wifi.stop() + startAP() re-ran the wifi init, which
-    // creates the default netifs a second time and asserts. Just drop the station.
-    if (m_stationStarted)
-        wifi.disconnectSTA();
-    else
-        wifi.stop();
-    wifi.startAP(generateHostname(TAG), "", WIFI_AUTH_OPEN);
-
-    setupApScreen();
-
-    ap_netif = wifi.getAccessPointIf();
-
-    // Entered because the network wasn't found, e.g. the router was still booting
-    // after a power cut. Keep looking for it, or the switch stays offline for good.
-    if (retryStation)
-        xTaskCreate(Main::apRetryTask, "ap_retry", 4096, this, 1, nullptr);
 }
 
 void Main::setupApScreen()
@@ -267,7 +232,7 @@ void Main::setupApScreen()
         lv_obj_align(m_apLabel1, LV_ALIGN_TOP_MID, 0, 110);
 
         m_apLabel2 = lv_label_create(welcome);
-        lv_label_set_text(m_apLabel2, m_hostname.c_str());
+        lv_label_set_text(m_apLabel2, m_hostname.c_str()); // The access point
         lv_obj_set_style_text_font(m_apLabel2, &lv_font_montserrat_24, 0);
         lv_obj_align(m_apLabel2, LV_ALIGN_TOP_MID, 0, 140);
 
@@ -331,9 +296,6 @@ void Main::closeInfoScreen()
 
 void Main::loadOpenHab(const std::string &ip)
 {
-    if (m_testConnection)
-        return;
-
     m_stationConnected = true;
 
     vTaskDelay(1000 / portTICK_PERIOD_MS); // Let wifi stabilize
@@ -351,13 +313,11 @@ void Main::loadOpenHab(const std::string &ip)
     {
         // No AP here: setup continues over the network at the IP shown below.
         // The AP is only for AP mode (chosen at boot, or no network found).
-        m_webserver = SimpleWebServer::start_webserver("/data");
-
         setupApScreen();
         if (lvgl_port_lock(-1))
         {
             lv_label_set_text(m_apLabel1, "Connect to wifi to setup at");
-            lv_label_set_text(m_apLabel2, wifi.getStaIp().c_str());
+            lv_label_set_text(m_apLabel2, ip.c_str());
 
             lvgl_port_unlock();
         }
@@ -365,14 +325,10 @@ void Main::loadOpenHab(const std::string &ip)
         return;
     }
 
-    if (m_webserver)
-        SimpleWebServer::stop_webserver(m_webserver);
-    m_webserver = SimpleWebServer::start_webserver("/data");
-
     if (!consoleStarted)
     {
         console.init(Console::ConsoleType::TelnetConsole, [this](auto args) {this->processCommand(args);},
-                     [] { consolePrintf("%s %s\r\n", TAG, VERSION); });
+                     [] { console_printf("%s %s\r\n", TAG, VERSION); });
         consoleStarted = true;
     }
 
@@ -446,16 +402,6 @@ void Main::loadRetryTask(void *arg)
 
     main->m_loadRetryRunning = false;
     vTaskDelete(nullptr);
-}
-
-string Main::generateHostname(const string& hostname_base)
-{
-    uint8_t chipid[6];
-    esp_read_mac(chipid, ESP_MAC_WIFI_STA);
-    static char hostname[32];
-    snprintf(hostname, 32, "%s_%02x%02x%02x", hostname_base.c_str(), chipid[3], chipid[4], chipid[5]);
-
-    return {hostname};
 }
 
 void Main::setupConnectingScreen()
@@ -562,112 +508,52 @@ void Main::closeHwScreen()
     }
 }
 
-void Main::apStarted()
-{
-    captdnsStop();
-    captdnsInit();
-    if (m_webserver)
-    {
-        SimpleWebServer::stop_webserver(m_webserver);
-    }
-    m_webserver = SimpleWebServer::start_webserver("/data");
+// Framework events, from the wifi event task like the old handler
 
+// The setup access point is up: show how to reach it
+void Main::apActive()
+{
+    m_apMode = true;
+    setupApScreen();
 }
 
 void Main::apStopped()
 {
-    // Connected to the network, the web server is still needed. When stopping it,
-    // forget the handle, or a later stop would use the freed one.
-    if (!m_stationConnected && m_webserver)
-    {
-        SimpleWebServer::stop_webserver(m_webserver);
-        m_webserver = nullptr;
-    }
-    captdnsStop();
+    m_apMode = false;
 }
 
-esp_err_t Main::unmountStorage()
+void Main::staActive()
 {
-    return esp_vfs_spiffs_unregister("spiffs");
+    loadOpenHab(framework.ipAddress());
 }
 
-esp_err_t Main::mountStorage(const char *basePath)
+// From the web server task, while the setup page tests new credentials
+void Main::setupConnectStarted()
 {
-    ESP_LOGI(TAG, "Initializing SPIFFS");
-
-    esp_vfs_spiffs_conf_t conf = {
-        .base_path = basePath,
-        .partition_label = "spiffs",
-        .max_files = 5,   // This sets the maximum number of files that can be open at the same time
-        .format_if_mount_failed = false
-    };
-
-    esp_err_t ret = esp_vfs_spiffs_register(&conf);
-    if (ret != ESP_OK) {
-        if (ret == ESP_FAIL) {
-            ESP_LOGE(TAG, "Failed to mount or format filesystem");
-        } else if (ret == ESP_ERR_NOT_FOUND) {
-            ESP_LOGE(TAG, "Failed to find SPIFFS partition");
-        } else {
-            ESP_LOGE(TAG, "Failed to initialize SPIFFS (%s)", esp_err_to_name(ret));
-        }
-        return ret;
-    }
-
-    size_t total = 0, used = 0;
-    ret = esp_spiffs_info("spiffs", &total, &used);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to get SPIFFS partition information (%s)", esp_err_to_name(ret));
-        return ret;
-    }
-
-    ESP_LOGI(TAG, "Partition size: total: %d, used: %d", total, used);
-    return ESP_OK;
-}
-
-void Main::tryConnectWifi(std::string ssid, std::string password)
-{
-//    esp_wifi_disconnect();
-//    esp_wifi_stop();
-
-    if (m_testConnection)
-        return;
-
-    m_testConnection = true;
-
     setupConnectingScreen();
-    printf("Attempting to connect\r\n");
-    // Keeps the AP running while connecting, the setup page is using it
-    auto ret = wifi.connectSTA(ssid, password, true);
-    printf("Connect done, result %d\r\n", ret);
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
-    m_testConnection = false;
+}
 
-    if (ret)
+void Main::setupConnectFinished(bool connected)
+{
+    if (!connected)
     {
-        wifi.disconnectSTA(); // Back to AP only
         setupApScreen();
         return;
     }
-    m_stationConnected = true;
 
-    // Setup continues over the network. Only now, so apStopped() keeps the web server.
-    wifi.stopAP();
-
+    // A new network: openHAB is set up again, over the network at the address shown
     NVS nvs("ls");
-
-    nvs.set("ssid", ssid);
-    nvs.set("password", password);
     nvs.set("base", "");
     nvs.set("sitemap", "");
-
     nvs.commit();
+    m_openHabUrl.clear();
+    m_sitemap.clear();
 
     setupApScreen();
     if (lvgl_port_lock(-1))
     {
         lv_label_set_text(m_apLabel1, "Connect to wifi to setup at");
-        lv_label_set_text(m_apLabel2, wifi.getStaIp().c_str());
+        lv_label_set_text(m_apLabel2, framework.ipAddress().c_str());
 
         lvgl_port_unlock();
     }
@@ -698,39 +584,11 @@ void Main::saveApiKey(std::string apiKey)
 
 void Main::update()
 {
-    SimpleWebServer::stop_webserver(m_webserver);
+    framework.stopWebServer();
     openhab.disconnectEventChannel();
 
     spiffsUpdate();
     firmwareUpdate();
-}
-
-#define AP_RETRY_INTERVAL_MS (60 * 1000)
-
-void Main::apRetryTask(void *arg)
-{
-    auto main = static_cast<Main *>(arg);
-
-    while (main->m_apMode)
-    {
-        vTaskDelay(AP_RETRY_INTERVAL_MS / portTICK_PERIOD_MS);
-
-        // Leave anyone using the setup page alone, a scan takes the AP off channel
-        wifi_sta_list_t clients;
-        if (main->m_testConnection || (esp_wifi_ap_get_sta_list(&clients) == ESP_OK && clients.num > 0))
-            continue;
-
-        for (auto &ap : wifi.scan())
-        {
-            if (ap.getSSID() == main->m_ssid)
-            {
-                printf("Network %s is back, restarting\r\n", main->m_ssid.c_str());
-                esp_restart(); // A clean normal boot
-            }
-        }
-    }
-
-    vTaskDelete(nullptr);
 }
 
 void Main::updateTask(void *arg)
@@ -760,9 +618,9 @@ static void printProgress(const char *what, int done, int total)
     lastStep = step;
 
     if (total > 0)
-        consolePrintf("%s: %d%% (%d of %d bytes)\r\n", what, step * 10, done, total);
+        console_printf("%s: %d%% (%d of %d bytes)\r\n", what, step * 10, done, total);
     else
-        consolePrintf("%s: %d bytes\r\n", what, done);
+        console_printf("%s: %d bytes\r\n", what, done);
 }
 
 static void printSpiffsProgress(int done, int total)

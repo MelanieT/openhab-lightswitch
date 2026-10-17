@@ -16,13 +16,6 @@ public:
     static void init();
 
 private:
-    static std::vector<WiFiAPRecord> m_apRecords;
-    static bool m_scanned;
-    static bool m_scanning;
-
-    static void scan(const ApiHttpRequest& req, ApiHttpResponse& resp);
-    static void connect(const ApiHttpRequest& req, ApiHttpResponse& resp);
-    static void deviceData(const ApiHttpRequest& req, ApiHttpResponse& resp);
     static void getSitemaps(const ApiHttpRequest& req, ApiHttpResponse& resp);
     static void setOpenhabData(const ApiHttpRequest& req, ApiHttpResponse& resp);
 };

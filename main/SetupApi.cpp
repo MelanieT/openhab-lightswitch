@@ -15,66 +15,12 @@
 using namespace nlohmann;
 using namespace std;
 
-std::vector<WiFiAPRecord> SetupApi::m_apRecords = {};
-bool SetupApi::m_scanned = false;
-bool SetupApi::m_scanning = false;
 
 void SetupApi::init()
 {
-    UrlMapper::AddMapping("POST", "/scan", SetupApi::scan);
-    UrlMapper::AddMapping("POST", "/connect", SetupApi::connect);
-    UrlMapper::AddMapping("POST", "/deviceData", SetupApi::deviceData);
+    // Wifi setup and /deviceData are the framework's
     UrlMapper::AddMapping("POST", "/getSitemaps", SetupApi::getSitemaps);
     UrlMapper::AddMapping("POST", "/setOpenhabData", SetupApi::setOpenhabData);
-}
-
-void SetupApi::scan(const ApiHttpRequest &req, ApiHttpResponse &resp)
-{
-    m_scanned = true;
-    m_apRecords = wifi.scan(); // Will block until done
-
-    resp.AddHeader("Content-type", "application/json");
-
-    vector<string> aplist;
-    for (auto ap : m_apRecords)
-    {
-        aplist.push_back(ap.getSSID());
-    }
-
-    json reply = {
-        {"apCount", m_apRecords.size()},
-        {"aplist", aplist},
-    };
-
-    resp.setBody(reply.dump());
-}
-
-void SetupApi::connect(const ApiHttpRequest &req, ApiHttpResponse &resp)
-{
-    try {
-        auto jsonData = json::parse(req.body());
-        if (jsonData.contains("ssid") && jsonData.contains("password"))
-        {
-            string ssid = jsonData["ssid"].get<string>();
-            string password = jsonData["password"].get<string>();
-            appMain.tryConnectWifi(ssid, password);
-        }
-    }
-    catch (...) {}
-}
-
-void SetupApi::deviceData(const ApiHttpRequest &req, ApiHttpResponse &resp)
-{
-    json reply = {
-        {"connected", appMain.stationConnected()},
-        {"ssid", appMain.ssid()},
-        {"base", appMain.openHabUrl()},
-        {"sitemap", appMain.sitemap()},
-    };
-
-    resp.AddHeader("Content-type", "application/json");
-
-    resp.setBody(reply.dump());
 }
 
 void SetupApi::getSitemaps(const ApiHttpRequest &req, ApiHttpResponse &resp)

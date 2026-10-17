@@ -68,3 +68,8 @@ CONFIG_LV_BUILD_EXAMPLES=n
 CONFIG_LCD_PANEL_IO_FORMAT_BUF_SIZE=32
 CONFIG_OTA_SERVER_URI="http://192.168.201.50/lightswitch/lightswitch/rom.img"
 CONFIG_SPIFFS_OTA_URI="http://192.168.201.50/lightswitch/lightswitch"
+# esp32-app-framework: wifi setup through the access point, web interface on the network too
+CONFIG_USE_SETUP_WEB_INTERFACE=y
+CONFIG_START_WEBSERVER_IN_STATION_MODE=y
+CONFIG_AP_MODE_HOSTNAME_PREFIX="lightswitch"
+CONFIG_WEB_INTERFACE_DIR="/Users/melanie/Projects/wifi-configurator/dist-lightswitch"

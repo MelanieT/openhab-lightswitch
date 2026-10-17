@@ -13,4 +13,7 @@ idf_build_set_property(COMPILE_OPTIONS "-w" APPEND)
 idf_build_set_property(COMPILE_OPTIONS "-fpermissive" APPEND)
 project(lightswitch)
 
-spiffs_create_partition_image(spiffs /Users/melanie/Projects/wifi-configurator/dist-lightswitch FLASH_IN_PROJECT)
+# The web interface, CONFIG_WEB_INTERFACE_DIR (wifi-configurator's dist-lightswitch)
+if(CONFIG_USE_SETUP_WEB_INTERFACE OR CONFIG_START_WEBSERVER_IN_STATION_MODE)
+    spiffs_create_partition_image(${CONFIG_WEB_INTERFACE_SPIFFS_PARTITION_NAME} ${CONFIG_WEB_INTERFACE_DIR} FLASH_IN_PROJECT)
+endif()

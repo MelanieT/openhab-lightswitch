@@ -5,7 +5,7 @@
 #ifndef LIGHTSWITCH_MAIN_H
 #define LIGHTSWITCH_MAIN_H
 
-#define VERSION "2.5"
+#define VERSION "3.0"
 
 #include "lvgl.h"
 #include "esp_http_server.h"
@@ -21,24 +21,30 @@ extern WiFi wifi;
 
 #include <string>
 #include <vector>
+#include "AppFramework.h"
 
-class Main
+extern AppFramework framework;
+
+class Main : public AppFrameworkHandler
 {
 public:
     Main() = default;
 
     void run();
-    void enterApMode(bool retryStation = false);
-    void tryConnectWifi(std::string ssid, std::string password);
     void saveOpenhabData(std::string url, std::string sitemap);
     void saveApiKey(std::string apiKey);
     void loadOpenHab(const std::string &ip);
-    void apStarted();
-    void apStopped();
     void spiffsUpdate();
     void firmwareUpdate();
     void showProgress(int done, int total);
     void update();
+
+    // AppFrameworkHandler
+    void apActive() override;
+    void apStopped() override;
+    void staActive() override;
+    void setupConnectStarted() override;
+    void setupConnectFinished(bool connected) override;
 
     inline std::string hostname() { return m_hostname; };
     inline bool apMode() { return m_apMode; };
@@ -62,14 +68,10 @@ private:
     std::string m_openHabUrl;
     std::string m_sitemap;
     std::string m_apiKey;
-    httpd_handle_t m_webserver;
-    bool m_testConnection = false;
     bool m_stationConnected = false;
-    bool m_captdnsStarted = false;
     bool m_enterAPMode = false;
     bool m_setupMode = false;
     bool m_updateMode = false;
-    bool m_stationStarted = false;
     volatile bool m_loadRetryRunning = false;
 
 
@@ -79,12 +81,8 @@ private:
     void setupConnectingScreen();
     void setupHwScreen();
     void closeHwScreen();
-    std::string generateHostname(const std::string &hostname_base);
-    esp_err_t mountStorage(const char *basePath);
-    esp_err_t unmountStorage();
     void processCommand(std::vector<std::string> args);
     static void updateTask(void *arg);
-    static void apRetryTask(void *arg);
     static void loadRetryTask(void *arg);
     bool loadSitemapUi();
 };

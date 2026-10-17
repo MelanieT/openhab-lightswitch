@@ -25,3 +25,6 @@
 [submodule "components/spiffs-ota"]
 	path = components/spiffs-ota
 	url = https://github.com/MelanieT/spiffs-ota.git
+[submodule "components/esp32-app-framework"]
+	path = components/esp32-app-framework
+	url = https://github.com/MelanieT/esp32-app-framework.git

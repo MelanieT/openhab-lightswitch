@@ -22,12 +22,6 @@ idf_component_register(
         "back.h"
         "lcd.c"
         "lcd.h"
-        "EventHandler.cpp"
-        "EventHandler.h"
-        "captdns.c"
-        "captdns.h"
-        "SimpleWebServer.cpp"
-        "SimpleWebServer.h"
         "SetupApi.cpp"
         "SetupApi.h"
     ${EXTRA_SRCS}
