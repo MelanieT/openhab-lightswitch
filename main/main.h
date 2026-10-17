@@ -5,7 +5,7 @@
 #ifndef LIGHTSWITCH_MAIN_H
 #define LIGHTSWITCH_MAIN_H
 
-#define VERSION "2.4"
+#define VERSION "2.5"
 
 #include "lvgl.h"
 #include "esp_http_server.h"
